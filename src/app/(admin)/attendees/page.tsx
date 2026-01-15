@@ -10,7 +10,7 @@ import {
   checkInAttendee,
   undoCheckIn,
   bulkCreateAttendees,
-  REGISTRATION_TYPES,
+  BADGE_TYPES,
   AttendeeWithGroups,
 } from '@/lib/api/attendees'
 import { getEvents } from '@/lib/api/events'
@@ -118,7 +118,7 @@ export default function AttendeesPage() {
     if (selectedGroup && !attendee.groups.some((g) => g.id === selectedGroup)) {
       return false
     }
-    if (selectedRegType && attendee.registration_type !== selectedRegType) {
+    if (selectedRegType && attendee.badge_type !== selectedRegType) {
       return false
     }
     if (showCheckedIn === 'checked_in' && !attendee.checked_in_at) {
@@ -135,13 +135,13 @@ export default function AttendeesPage() {
   const checkedInCount = attendees.filter((a) => a.checked_in_at).length
   const notCheckedInCount = totalAttendees - checkedInCount
 
-  const getRegTypeLabel = (type: string) => {
-    return REGISTRATION_TYPES.find((t) => t.value === type)?.label || type
+  const getBadgeTypeLabel = (type: string) => {
+    return BADGE_TYPES.find((t) => t.value === type)?.label || type
   }
 
-  const getRegTypeColor = (type: string) => {
+  const getBadgeTypeColor = (type: string) => {
     const colors: Record<string, string> = {
-      standard: 'bg-gray-500/20 text-gray-600',
+      attendee: 'bg-gray-500/20 text-gray-600',
       vip: 'bg-purple-500/20 text-purple-600',
       speaker: 'bg-blue-500/20 text-blue-600',
       exhibitor: 'bg-green-500/20 text-green-600',
@@ -154,8 +154,8 @@ export default function AttendeesPage() {
 
   const handleDownloadTemplate = () => {
     const template = [
-      'full_name,email,registration_type,groups',
-      'John Doe,john@example.com,standard,"VIP,Speakers"',
+      'full_name,email,badge_type,groups',
+      'John Doe,john@example.com,attendee,"VIP,Speakers"',
       'Jane Smith,jane@example.com,vip,Sponsors',
     ].join('\n')
     downloadCSV(template, 'attendees_template.csv')
@@ -173,7 +173,7 @@ export default function AttendeesPage() {
       const rows = parseCSV<{
         full_name: string
         email: string
-        registration_type?: string
+        badge_type?: string
         groups?: string
       }>(text)
 
@@ -243,11 +243,11 @@ export default function AttendeesPage() {
 
   const handleExport = () => {
     const csvContent = [
-      ['Name', 'Email', 'Registration Type', 'Groups', 'Checked In'],
+      ['Name', 'Email', 'Badge Type', 'Groups', 'Checked In'],
       ...filteredAttendees.map((a) => [
         a.full_name,
         a.email,
-        a.registration_type,
+        a.badge_type,
         a.groups.map((g) => g.name).join(', '),
         a.checked_in_at ? format(parseISO(a.checked_in_at), 'yyyy-MM-dd HH:mm') : '',
       ]),
@@ -408,7 +408,7 @@ export default function AttendeesPage() {
                   </div>
                 )}
 
-                {/* Registration Type Filter */}
+                {/* Badge Type Filter */}
                 <div className="relative">
                   <Filter
                     size={16}
@@ -420,7 +420,7 @@ export default function AttendeesPage() {
                     className="pl-9 pr-8 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)] appearance-none cursor-pointer"
                   >
                     <option value="">All Types</option>
-                    {REGISTRATION_TYPES.map((type) => (
+                    {BADGE_TYPES.map((type) => (
                       <option key={type.value} value={type.value}>
                         {type.label}
                       </option>
@@ -539,11 +539,11 @@ export default function AttendeesPage() {
                           </td>
                           <td className="p-4">
                             <span
-                              className={`px-2 py-1 rounded text-xs font-medium ${getRegTypeColor(
-                                attendee.registration_type
+                              className={`px-2 py-1 rounded text-xs font-medium ${getBadgeTypeColor(
+                                attendee.badge_type
                               )}`}
                             >
-                              {getRegTypeLabel(attendee.registration_type)}
+                              {getBadgeTypeLabel(attendee.badge_type)}
                             </span>
                           </td>
                           <td className="p-4">
@@ -695,8 +695,8 @@ export default function AttendeesPage() {
                       <code className="bg-[var(--input-bg)] px-1 rounded">email</code> - Required
                     </li>
                     <li>
-                      <code className="bg-[var(--input-bg)] px-1 rounded">registration_type</code> -
-                      Optional (standard, vip, speaker, etc.)
+                      <code className="bg-[var(--input-bg)] px-1 rounded">badge_type</code> -
+                      Optional (attendee, vip, speaker, etc.)
                     </li>
                     <li>
                       <code className="bg-[var(--input-bg)] px-1 rounded">groups</code> - Optional

@@ -70,13 +70,25 @@ export interface SessionSpeaker {
 export interface Attendee {
   id: string
   event_id: string
+  organization_id: string
   profile_id: string | null
-  full_name: string
+  first_name: string
+  last_name: string
   email: string
-  qr_code: string | null
-  registration_type: string
+  phone: string | null
+  specialty: string | null
+  institution: string | null
+  title: string | null
+  badge_type: string
+  badge_generated: boolean
+  badge_printed: boolean
+  qr_data: Record<string, unknown> | null
+  registered_at: string | null
+  checked_in: boolean
   checked_in_at: string | null
+  checked_in_by: string | null
   created_at: string
+  updated_at: string
 }
 
 export interface Lead {

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Attendee, AttendeeGroup, AttendeeGroupMember } from '@/types/database'
 
 export interface AttendeeWithGroups extends Attendee {
+  full_name: string  // Computed from first_name + last_name
   groups: AttendeeGroup[]
 }
 
@@ -12,7 +13,7 @@ export async function getAttendees(eventId: string): Promise<Attendee[]> {
     .from('attendees')
     .select('*')
     .eq('event_id', eventId)
-    .order('full_name')
+    .order('first_name')
 
   if (error) {
     console.error('Error fetching attendees:', error)
@@ -30,7 +31,7 @@ export async function getAttendeesWithGroups(eventId: string): Promise<AttendeeW
     .from('attendees')
     .select('*')
     .eq('event_id', eventId)
-    .order('full_name')
+    .order('first_name')
 
   if (attendeesError) {
     console.error('Error fetching attendees:', attendeesError)
@@ -80,6 +81,7 @@ export async function getAttendeesWithGroups(eventId: string): Promise<AttendeeW
 
   return attendees.map((attendee) => ({
     ...attendee,
+    full_name: `${attendee.first_name} ${attendee.last_name}`.trim(),
     groups: attendeeGroups.get(attendee.id) || [],
   }))
 }
@@ -110,6 +112,7 @@ export async function getAttendee(id: string): Promise<AttendeeWithGroups | null
 
   return {
     ...attendee,
+    full_name: `${attendee.first_name} ${attendee.last_name}`.trim(),
     groups,
   }
 }
@@ -274,9 +277,11 @@ export async function deleteGroup(id: string): Promise<void> {
 
 // Bulk import
 export interface AttendeeCSVRow {
-  full_name: string
+  full_name?: string  // Will be split into first_name/last_name
+  first_name?: string
+  last_name?: string
   email: string
-  registration_type?: string
+  badge_type?: string  // was registration_type
   groups?: string // comma-separated group names
 }
 
@@ -299,28 +304,45 @@ export async function bulkCreateAttendees(
   const newGroups = new Map<string, string>() // name -> id
 
   for (const row of attendees) {
-    if (!row.full_name?.trim()) {
+    // Handle name - support both full_name and first_name/last_name
+    let firstName = row.first_name?.trim() || ''
+    let lastName = row.last_name?.trim() || ''
+
+    if (!firstName && !lastName && row.full_name?.trim()) {
+      // Split full_name into first and last
+      const nameParts = row.full_name.trim().split(/\s+/)
+      firstName = nameParts[0] || ''
+      lastName = nameParts.slice(1).join(' ') || ''
+    }
+
+    if (!firstName) {
       errors.push('Skipped row: missing name')
       continue
     }
     if (!row.email?.trim()) {
-      errors.push(`Skipped "${row.full_name}": missing email`)
+      errors.push(`Skipped "${firstName} ${lastName}": missing email`)
       continue
     }
 
-    // Generate QR code (simple unique string for now)
-    const qrCode = `${eventId.slice(0, 8)}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    // Generate QR data (JSON object)
+    const qrData = {
+      firstName,
+      lastName,
+      email: row.email.trim().toLowerCase(),
+    }
 
     // Create the attendee
     const { data: createdAttendee, error: attendeeError } = await supabase
       .from('attendees')
       .insert({
         event_id: eventId,
-        full_name: row.full_name.trim(),
+        first_name: firstName,
+        last_name: lastName,
         email: row.email.trim().toLowerCase(),
-        registration_type: row.registration_type?.trim() || 'standard',
-        qr_code: qrCode,
+        badge_type: row.badge_type?.trim() || 'attendee',
+        qr_data: qrData,
         profile_id: null,
+        checked_in: false,
         checked_in_at: null,
       })
       .select()
@@ -328,9 +350,9 @@ export async function bulkCreateAttendees(
 
     if (attendeeError) {
       if (attendeeError.code === '23505') {
-        errors.push(`Skipped "${row.full_name}": duplicate email`)
+        errors.push(`Skipped "${firstName} ${lastName}": duplicate email`)
       } else {
-        errors.push(`Failed to create "${row.full_name}": ${attendeeError.message}`)
+        errors.push(`Failed to create "${firstName} ${lastName}": ${attendeeError.message}`)
       }
       continue
     }
@@ -389,12 +411,15 @@ export async function bulkCreateAttendees(
   return { created, errors }
 }
 
-export const REGISTRATION_TYPES = [
-  { value: 'standard', label: 'Standard' },
-  { value: 'vip', label: 'VIP' },
+export const BADGE_TYPES = [
+  { value: 'attendee', label: 'Attendee' },
   { value: 'speaker', label: 'Speaker' },
   { value: 'exhibitor', label: 'Exhibitor' },
   { value: 'sponsor', label: 'Sponsor' },
   { value: 'staff', label: 'Staff' },
+  { value: 'vip', label: 'VIP' },
   { value: 'press', label: 'Press' },
 ]
+
+// Alias for backward compatibility
+export const REGISTRATION_TYPES = BADGE_TYPES
