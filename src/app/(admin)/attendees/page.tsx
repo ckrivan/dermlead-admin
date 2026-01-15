@@ -1,11 +1,10 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button, Input } from '@/components/ui'
 import {
   getAttendeesWithGroups,
-  getGroups,
   deleteAttendee,
   checkInAttendee,
   undoCheckIn,
@@ -13,9 +12,12 @@ import {
   BADGE_TYPES,
   AttendeeWithGroups,
 } from '@/lib/api/attendees'
+import { getGroups } from '@/lib/api/groups'
 import { getEvents } from '@/lib/api/events'
 import { downloadCSV, parseCSV } from '@/lib/utils/csv'
-import type { Event, AttendeeGroup } from '@/types/database'
+import { createClient } from '@/lib/supabase/client'
+import { GroupAssignment } from '@/components/GroupAssignment'
+import type { Event, EventGroup } from '@/types/database'
 import {
   Plus,
   Users,
@@ -41,7 +43,7 @@ import { format, parseISO } from 'date-fns'
 
 export default function AttendeesPage() {
   const [attendees, setAttendees] = useState<AttendeeWithGroups[]>([])
-  const [groups, setGroups] = useState<AttendeeGroup[]>([])
+  const [groups, setGroups] = useState<EventGroup[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
@@ -78,6 +80,17 @@ export default function AttendeesPage() {
     loadEvents()
   }, [])
 
+  // Refetch function for real-time updates
+  const refetchAttendees = useCallback(async () => {
+    if (!selectedEventId) return
+    try {
+      const attendeesData = await getAttendeesWithGroups(selectedEventId)
+      setAttendees(attendeesData)
+    } catch (error) {
+      console.error('Error refetching attendees:', error)
+    }
+  }, [selectedEventId])
+
   useEffect(() => {
     async function loadData() {
       if (!selectedEventId) {
@@ -102,7 +115,39 @@ export default function AttendeesPage() {
       }
     }
     loadData()
-  }, [selectedEventId])
+
+    // Set up real-time subscription for attendees
+    if (!selectedEventId) return
+
+    const supabase = createClient()
+    const channelName = `admin-attendees:${selectedEventId}`
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'attendees',
+          filter: `event_id=eq.${selectedEventId}`,
+        },
+        (payload) => {
+          console.log('Attendee change detected:', payload.eventType)
+          // Refetch to get updated data with groups
+          refetchAttendees()
+        }
+      )
+      .subscribe((status) => {
+        console.log(`Real-time subscription status for ${channelName}:`, status)
+      })
+
+    // Cleanup subscription on unmount or eventId change
+    return () => {
+      console.log(`Unsubscribing from ${channelName}`)
+      supabase.removeChannel(channel)
+    }
+  }, [selectedEventId, refetchAttendees])
 
   // Filter attendees
   const filteredAttendees = attendees.filter((attendee) => {
@@ -547,24 +592,14 @@ export default function AttendeesPage() {
                             </span>
                           </td>
                           <td className="p-4">
-                            {attendee.groups.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {attendee.groups.map((group) => (
-                                  <span
-                                    key={group.id}
-                                    className="px-2 py-0.5 rounded text-xs"
-                                    style={{
-                                      backgroundColor: `${group.color || '#3b82f6'}20`,
-                                      color: group.color || '#3b82f6',
-                                    }}
-                                  >
-                                    {group.name}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-[var(--foreground-subtle)] text-sm">—</span>
-                            )}
+                            <GroupAssignment
+                              entityType="attendee"
+                              entityId={attendee.id}
+                              eventId={selectedEventId}
+                              availableGroups={groups}
+                              onGroupsChange={() => refetchAttendees()}
+                              compact={true}
+                            />
                           </td>
                           <td className="p-4">
                             {attendee.checked_in_at ? (

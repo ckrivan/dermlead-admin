@@ -6,14 +6,17 @@ import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button } from '@/components/ui'
 import { getSpeakers, bulkCreateSpeakers } from '@/lib/api/speakers'
 import { getEvents } from '@/lib/api/events'
+import { getGroups } from '@/lib/api/groups'
 import { parseCSV, generateSpeakerTemplate, downloadCSV, SpeakerCSVRow } from '@/lib/utils/csv'
-import type { Speaker, Event } from '@/types/database'
-import { Plus, User, Mail, Building, Edit, Trash2, Upload, Download, X, Send, CheckSquare, Square } from 'lucide-react'
+import { GroupAssignment } from '@/components/GroupAssignment'
+import type { Speaker, Event, EventGroup } from '@/types/database'
+import { Plus, User, Mail, Building, Edit, Trash2, Upload, Download, X, Send, CheckSquare, Square, Tag } from 'lucide-react'
 import { sendBulkMessage } from '@/lib/api/speaker-messages'
 
 export default function SpeakersPage() {
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [events, setEvents] = useState<Event[]>([])
+  const [groups, setGroups] = useState<EventGroup[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [showImportModal, setShowImportModal] = useState(false)
@@ -55,14 +58,19 @@ export default function SpeakersPage() {
     async function loadSpeakers() {
       if (!selectedEventId) {
         setSpeakers([])
+        setGroups([])
         setLoading(false)
         return
       }
 
       setLoading(true)
       try {
-        const data = await getSpeakers(selectedEventId)
-        setSpeakers(data)
+        const [speakersData, groupsData] = await Promise.all([
+          getSpeakers(selectedEventId),
+          getGroups(selectedEventId),
+        ])
+        setSpeakers(speakersData)
+        setGroups(groupsData)
       } catch (error) {
         console.error('Error loading speakers:', error)
       } finally {
@@ -352,6 +360,17 @@ export default function SpeakersPage() {
                           <span className="truncate">{speaker.email}</span>
                         </div>
                       )}
+                      {/* Groups */}
+                      <div className="flex items-center gap-1 mt-2">
+                        <Tag size={14} className="text-[var(--foreground-muted)] flex-shrink-0" />
+                        <GroupAssignment
+                          entityType="speaker"
+                          entityId={speaker.id}
+                          eventId={selectedEventId}
+                          availableGroups={groups}
+                          compact={true}
+                        />
+                      </div>
                     </div>
                   </div>
 

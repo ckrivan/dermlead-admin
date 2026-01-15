@@ -108,7 +108,8 @@ export interface Lead {
   updated_at: string
 }
 
-export interface AttendeeGroup {
+// Renamed from AttendeeGroup - now supports all entity types
+export interface EventGroup {
   id: string
   event_id: string
   name: string
@@ -117,6 +118,20 @@ export interface AttendeeGroup {
   created_at: string
 }
 
+// Alias for backward compatibility
+export type AttendeeGroup = EventGroup
+
+export type EntityType = 'attendee' | 'speaker' | 'sponsor' | 'exhibitor'
+
+export interface GroupMember {
+  id: string
+  group_id: string
+  entity_type: EntityType
+  entity_id: string
+  created_at: string
+}
+
+// Legacy alias for backward compatibility
 export interface AttendeeGroupMember {
   id: string
   group_id: string

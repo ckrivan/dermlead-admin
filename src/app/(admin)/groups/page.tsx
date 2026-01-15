@@ -6,11 +6,11 @@ import { Card, CardBody, Button } from '@/components/ui'
 import { getGroups, createGroup, updateGroup, deleteGroup, initializeDefaultGroups, bulkCreateGroups } from '@/lib/api/groups'
 import { getEvents } from '@/lib/api/events'
 import { parseCSV, generateGroupTemplate, downloadCSV, GroupCSVRow } from '@/lib/utils/csv'
-import type { AttendeeGroup, Event } from '@/types/database'
+import type { EventGroup, Event } from '@/types/database'
 import { Plus, Users, Edit, Trash2, X, Palette, Upload, Download } from 'lucide-react'
 
 export default function GroupsPage() {
-  const [groups, setGroups] = useState<AttendeeGroup[]>([])
+  const [groups, setGroups] = useState<EventGroup[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
@@ -19,7 +19,7 @@ export default function GroupsPage() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ created: number; errors: string[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [editingGroup, setEditingGroup] = useState<AttendeeGroup | null>(null)
+  const [editingGroup, setEditingGroup] = useState<EventGroup | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -62,7 +62,7 @@ export default function GroupsPage() {
     loadGroups()
   }, [selectedEventId])
 
-  const handleOpenModal = (group?: AttendeeGroup) => {
+  const handleOpenModal = (group?: EventGroup) => {
     if (group) {
       setEditingGroup(group)
       setFormData({
@@ -111,7 +111,7 @@ export default function GroupsPage() {
     }
   }
 
-  const handleDelete = async (group: AttendeeGroup) => {
+  const handleDelete = async (group: EventGroup) => {
     if (!confirm(`Delete group "${group.name}"? Members will be removed from this group.`)) return
 
     try {
