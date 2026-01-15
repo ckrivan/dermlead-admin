@@ -12,13 +12,15 @@ import {
   EXHIBITOR_CATEGORIES,
 } from '@/lib/api/exhibitors'
 import { getEvents } from '@/lib/api/events'
+import { getGroups } from '@/lib/api/groups'
 import {
   parseCSV,
   generateExhibitorTemplate,
   downloadCSV,
   ExhibitorCSVRow,
 } from '@/lib/utils/csv'
-import type { Exhibitor, Event } from '@/types/database'
+import { GroupAssignment } from '@/components/GroupAssignment'
+import type { Exhibitor, Event, EventGroup } from '@/types/database'
 import {
   Plus,
   Building2,
@@ -32,11 +34,13 @@ import {
   Download,
   X,
   Search,
+  Tag,
 } from 'lucide-react'
 
 export default function ExhibitorsPage() {
   const [exhibitors, setExhibitors] = useState<Exhibitor[]>([])
   const [events, setEvents] = useState<Event[]>([])
+  const [groups, setGroups] = useState<EventGroup[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -86,14 +90,19 @@ export default function ExhibitorsPage() {
     async function loadExhibitors() {
       if (!selectedEventId) {
         setExhibitors([])
+        setGroups([])
         setLoading(false)
         return
       }
 
       setLoading(true)
       try {
-        const data = await getExhibitors(selectedEventId)
-        setExhibitors(data)
+        const [exhibitorsData, groupsData] = await Promise.all([
+          getExhibitors(selectedEventId),
+          getGroups(selectedEventId),
+        ])
+        setExhibitors(exhibitorsData)
+        setGroups(groupsData)
       } catch (error) {
         console.error('Error loading exhibitors:', error)
       } finally {
@@ -437,6 +446,18 @@ export default function ExhibitorsPage() {
                         <span>{exhibitor.contact_phone}</span>
                       </div>
                     )}
+                  </div>
+
+                  {/* Groups */}
+                  <div className="flex items-center gap-1 mt-3 pt-3 border-t border-[var(--card-border)]">
+                    <Tag size={14} className="text-[var(--foreground-muted)] flex-shrink-0" />
+                    <GroupAssignment
+                      entityType="exhibitor"
+                      entityId={exhibitor.id}
+                      eventId={selectedEventId}
+                      availableGroups={groups}
+                      compact={true}
+                    />
                   </div>
                 </CardBody>
               </Card>

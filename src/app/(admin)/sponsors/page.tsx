@@ -12,13 +12,15 @@ import {
   SPONSOR_TIERS,
 } from '@/lib/api/sponsors'
 import { getEvents } from '@/lib/api/events'
+import { getGroups } from '@/lib/api/groups'
 import {
   parseCSV,
   generateSponsorTemplate,
   downloadCSV,
   SponsorCSVRow,
 } from '@/lib/utils/csv'
-import type { Sponsor, Event } from '@/types/database'
+import { GroupAssignment } from '@/components/GroupAssignment'
+import type { Sponsor, Event, EventGroup } from '@/types/database'
 import {
   Plus,
   Award,
@@ -31,11 +33,13 @@ import {
   Download,
   X,
   Star,
+  Tag,
 } from 'lucide-react'
 
 export default function SponsorsPage() {
   const [sponsors, setSponsors] = useState<Sponsor[]>([])
   const [events, setEvents] = useState<Event[]>([])
+  const [groups, setGroups] = useState<EventGroup[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [selectedTier, setSelectedTier] = useState<string>('')
@@ -84,14 +88,19 @@ export default function SponsorsPage() {
     async function loadSponsors() {
       if (!selectedEventId) {
         setSponsors([])
+        setGroups([])
         setLoading(false)
         return
       }
 
       setLoading(true)
       try {
-        const data = await getSponsors(selectedEventId)
-        setSponsors(data)
+        const [sponsorsData, groupsData] = await Promise.all([
+          getSponsors(selectedEventId),
+          getGroups(selectedEventId),
+        ])
+        setSponsors(sponsorsData)
+        setGroups(groupsData)
       } catch (error) {
         console.error('Error loading sponsors:', error)
       } finally {
@@ -372,6 +381,8 @@ export default function SponsorsPage() {
                 key={sponsor.id}
                 sponsor={sponsor}
                 tierInfo={getTierInfo(sponsor.tier)}
+                groups={groups}
+                eventId={selectedEventId}
                 onEdit={() => handleOpenForm(sponsor)}
                 onDelete={() => handleDelete(sponsor)}
               />
@@ -404,6 +415,8 @@ export default function SponsorsPage() {
                         key={sponsor.id}
                         sponsor={sponsor}
                         tierInfo={tier}
+                        groups={groups}
+                        eventId={selectedEventId}
                         onEdit={() => handleOpenForm(sponsor)}
                         onDelete={() => handleDelete(sponsor)}
                       />
@@ -681,11 +694,15 @@ export default function SponsorsPage() {
 function SponsorCard({
   sponsor,
   tierInfo,
+  groups,
+  eventId,
   onEdit,
   onDelete,
 }: {
   sponsor: Sponsor
   tierInfo: { value: string; label: string; color: string }
+  groups: EventGroup[]
+  eventId: string
   onEdit: () => void
   onDelete: () => void
 }) {
@@ -773,6 +790,18 @@ function SponsorCard({
               <span className="truncate">{sponsor.contact_email}</span>
             </div>
           )}
+        </div>
+
+        {/* Groups */}
+        <div className="flex items-center gap-1 mt-3 pt-3 border-t border-[var(--card-border)]">
+          <Tag size={14} className="text-[var(--foreground-muted)] flex-shrink-0" />
+          <GroupAssignment
+            entityType="sponsor"
+            entityId={sponsor.id}
+            eventId={eventId}
+            availableGroups={groups}
+            compact={true}
+          />
         </div>
       </CardBody>
     </Card>
