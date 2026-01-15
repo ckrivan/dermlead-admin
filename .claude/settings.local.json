@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_claude-mem_mem-search__search",
+      "Bash(lsof:*)",
+      "Bash(ps:*)",
+      "Bash(npx supabase projects api-keys:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(SERVICE_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4emVucGp4c3lzcXBpbXF0b3NpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjUxMjE5NiwiZXhwIjoyMDgyMDg4MTk2fQ.wuBRAP-RHQoau15Iy6o3EHLPOtswNdzkafIkREStAdc\")",
+      "Bash(npm run build:*)",
+      "Bash(cd:*)",
+      "Bash(ANON_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4emVucGp4c3lzcXBpbXF0b3NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1MTIxOTYsImV4cCI6MjA4MjA4ODE5Nn0.b6Xs2BxXl75CMf87-jpZyA3hXZ2LvnylTVRZ-E-kX30\":*)",
+      "Bash(npx supabase:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
