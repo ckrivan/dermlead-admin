@@ -17,11 +17,13 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  BarChart3,
 } from 'lucide-react'
 import { useState } from 'react'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Events', href: '/events', icon: Calendar },
   { name: 'Attendees', href: '/attendees', icon: UserCheck },
   { name: 'Speakers', href: '/speakers', icon: Users },
