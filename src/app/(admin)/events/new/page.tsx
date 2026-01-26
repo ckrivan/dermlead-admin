@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
-import { Card, CardBody, CardFooter, Button, Input, Textarea } from '@/components/ui'
+import { Card, CardBody, CardFooter, Button, Input, Textarea, ColorPicker } from '@/components/ui'
 import { createEvent, generateSlug, generateInviteCode } from '@/lib/api/events'
 import { createClient } from '@/lib/supabase/client'
 import type { Organization } from '@/types/database'
@@ -25,6 +25,7 @@ export default function NewEventPage() {
     end_date: '',
     description: '',
     invite_code: '',
+    brand_color: '#3b82f6',
   })
 
   const [tracks, setTracks] = useState<string[]>([])
@@ -114,7 +115,7 @@ export default function NewEventPage() {
         invite_code: formData.invite_code || null,
         banner_url: null,
         tracks: tracks.length > 0 ? tracks : null,
-        brand_color: null,
+        brand_color: formData.brand_color,
         logo_url: null,
         show_logo_on_banner: false,
         custom_url_slug: null,
@@ -233,6 +234,18 @@ export default function NewEventPage() {
                       error={errors.end_date}
                     />
                   </div>
+                </CardBody>
+              </Card>
+
+              <Card>
+                <CardBody className="space-y-4">
+                  <h3 className="font-semibold text-[var(--foreground)]">Branding</h3>
+
+                  <ColorPicker
+                    label="Brand Color"
+                    value={formData.brand_color}
+                    onChange={(color) => setFormData((prev) => ({ ...prev, brand_color: color }))}
+                  />
                 </CardBody>
               </Card>
 
