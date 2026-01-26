@@ -3,17 +3,28 @@
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
-import { Card, CardBody, CardFooter, Button, Input, Textarea } from '@/components/ui'
+import {
+  Card,
+  CardBody,
+  CardFooter,
+  Button,
+  Input,
+  Textarea,
+  ColorPicker,
+  ConfirmDialog,
+} from '@/components/ui'
 import {
   getEvent,
   updateEvent,
   deleteEvent,
+  archiveEvent,
   uploadEventBanner,
+  uploadEventLogo,
   generateSlug,
   generateInviteCode,
 } from '@/lib/api/events'
 import type { Event } from '@/types/database'
-import { ArrowLeft, Save, Trash2, Upload, RefreshCw, X, Plus } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, Archive, Upload, RefreshCw, X, Plus } from 'lucide-react'
 import Link from 'next/link'
 
 interface EditEventPageProps {
@@ -28,7 +39,12 @@ export default function EditEventPage({ params }: EditEventPageProps) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [archiving, setArchiving] = useState(false)
   const [uploadingBanner, setUploadingBanner] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -37,11 +53,13 @@ export default function EditEventPage({ params }: EditEventPageProps) {
     end_date: '',
     description: '',
     invite_code: '',
+    brand_color: '#3b82f6',
   })
 
   const [tracks, setTracks] = useState<string[]>([])
   const [newTrack, setNewTrack] = useState('')
   const [bannerPreview, setBannerPreview] = useState<string | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -57,9 +75,11 @@ export default function EditEventPage({ params }: EditEventPageProps) {
             end_date: data.end_date,
             description: data.description || '',
             invite_code: data.invite_code || '',
+            brand_color: data.brand_color || '#3b82f6',
           })
           setTracks(data.tracks || [])
           setBannerPreview(data.banner_url)
+          setLogoPreview(data.logo_url)
         }
       } catch (error) {
         console.error('Error loading event:', error)
@@ -86,22 +106,39 @@ export default function EditEventPage({ params }: EditEventPageProps) {
 
     setUploadingBanner(true)
     try {
-      // Show preview immediately
       const reader = new FileReader()
       reader.onload = (e) => setBannerPreview(e.target?.result as string)
       reader.readAsDataURL(file)
 
-      // Upload to storage
       const url = await uploadEventBanner(id, file)
       setBannerPreview(url)
-
-      // Update event with banner URL
       await updateEvent(id, { banner_url: url })
     } catch (error) {
       console.error('Error uploading banner:', error)
       alert('Failed to upload banner. Please try again.')
     } finally {
       setUploadingBanner(false)
+    }
+  }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingLogo(true)
+    try {
+      const reader = new FileReader()
+      reader.onload = (e) => setLogoPreview(e.target?.result as string)
+      reader.readAsDataURL(file)
+
+      const url = await uploadEventLogo(id, file)
+      setLogoPreview(url)
+      await updateEvent(id, { logo_url: url })
+    } catch (error) {
+      console.error('Error uploading logo:', error)
+      alert('Failed to upload logo. Please try again.')
+    } finally {
+      setUploadingLogo(false)
     }
   }
 
@@ -149,6 +186,7 @@ export default function EditEventPage({ params }: EditEventPageProps) {
         end_date: formData.end_date,
         description: formData.description || null,
         invite_code: formData.invite_code || null,
+        brand_color: formData.brand_color,
         tracks: tracks.length > 0 ? tracks : null,
       })
 
@@ -162,14 +200,6 @@ export default function EditEventPage({ params }: EditEventPageProps) {
   }
 
   const handleDelete = async () => {
-    if (
-      !confirm(
-        'Are you sure you want to delete this event? This will also delete all speakers, sessions, and attendees associated with this event. This action cannot be undone.'
-      )
-    ) {
-      return
-    }
-
     setDeleting(true)
     try {
       await deleteEvent(id)
@@ -179,6 +209,21 @@ export default function EditEventPage({ params }: EditEventPageProps) {
       alert('Failed to delete event. Please try again.')
     } finally {
       setDeleting(false)
+      setShowDeleteDialog(false)
+    }
+  }
+
+  const handleArchive = async () => {
+    setArchiving(true)
+    try {
+      await archiveEvent(id)
+      router.push('/events')
+    } catch (error) {
+      console.error('Error archiving event:', error)
+      alert('Failed to archive event. Please try again.')
+    } finally {
+      setArchiving(false)
+      setShowArchiveDialog(false)
     }
   }
 
@@ -289,6 +334,18 @@ export default function EditEventPage({ params }: EditEventPageProps) {
 
               <Card>
                 <CardBody className="space-y-4">
+                  <h3 className="font-semibold text-[var(--foreground)]">Branding</h3>
+
+                  <ColorPicker
+                    label="Brand Color"
+                    value={formData.brand_color}
+                    onChange={(color) => setFormData((prev) => ({ ...prev, brand_color: color }))}
+                  />
+                </CardBody>
+              </Card>
+
+              <Card>
+                <CardBody className="space-y-4">
                   <h3 className="font-semibold text-[var(--foreground)]">Tracks</h3>
                   <p className="text-sm text-[var(--foreground-muted)]">
                     Define tracks for organizing sessions (e.g., Clinical, Business, Research)
@@ -340,18 +397,26 @@ export default function EditEventPage({ params }: EditEventPageProps) {
                     Danger Zone
                   </h3>
                   <p className="text-sm text-[var(--foreground-muted)] mb-4">
-                    Deleting this event will also delete all associated speakers, sessions,
-                    and attendees. This action is permanent and cannot be undone.
+                    Archive this event to hide it from the list, or permanently delete it along with all associated data.
                   </p>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    icon={<Trash2 size={16} />}
-                    loading={deleting}
-                    onClick={handleDelete}
-                  >
-                    Delete Event
-                  </Button>
+                  <div className="flex gap-3">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      icon={<Archive size={16} />}
+                      onClick={() => setShowArchiveDialog(true)}
+                    >
+                      Archive Event
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      icon={<Trash2 size={16} />}
+                      onClick={() => setShowDeleteDialog(true)}
+                    >
+                      Delete Event
+                    </Button>
+                  </div>
                 </CardBody>
               </Card>
             </div>
@@ -398,6 +463,52 @@ export default function EditEventPage({ params }: EditEventPageProps) {
                         onChange={handleBannerUpload}
                         className="hidden"
                         disabled={uploadingBanner}
+                      />
+                    </label>
+                  )}
+                </CardBody>
+              </Card>
+
+              {/* Logo Upload */}
+              <Card>
+                <CardBody className="space-y-4">
+                  <h3 className="font-semibold text-[var(--foreground)]">Event Logo</h3>
+
+                  {logoPreview ? (
+                    <div className="relative">
+                      <img
+                        src={logoPreview}
+                        alt="Event logo"
+                        className="w-full h-32 object-contain rounded-lg bg-[var(--background-tertiary)] p-4"
+                      />
+                      <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
+                        <span className="text-white text-sm font-medium">Change Logo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-32 rounded-lg border-2 border-dashed border-[var(--input-border)] hover:border-[var(--accent-primary)] cursor-pointer transition-colors">
+                      {uploadingLogo ? (
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)]" />
+                      ) : (
+                        <>
+                          <Upload size={24} className="text-[var(--foreground-muted)] mb-2" />
+                          <span className="text-sm text-[var(--foreground-muted)]">
+                            Upload logo image
+                          </span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                        disabled={uploadingLogo}
                       />
                     </label>
                   )}
@@ -456,6 +567,32 @@ export default function EditEventPage({ params }: EditEventPageProps) {
           </div>
         </form>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={handleDelete}
+        title="Delete Event"
+        message="Are you sure you want to delete this event? This will permanently delete all speakers, sessions, and attendees associated with this event. This action cannot be undone."
+        confirmLabel="Delete Event"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleting}
+      />
+
+      {/* Archive Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showArchiveDialog}
+        onClose={() => setShowArchiveDialog(false)}
+        onConfirm={handleArchive}
+        title="Archive Event"
+        message="Are you sure you want to archive this event? It will be hidden from the events list but can be restored later."
+        confirmLabel="Archive Event"
+        cancelLabel="Cancel"
+        variant="primary"
+        loading={archiving}
+      />
     </>
   )
 }

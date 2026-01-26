@@ -85,6 +85,48 @@ export async function deleteEvent(id: string): Promise<void> {
   }
 }
 
+export async function archiveEvent(id: string): Promise<Event> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('events')
+    .update({
+      archived_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error archiving event:', error)
+    throw error
+  }
+
+  return data
+}
+
+export async function unarchiveEvent(id: string): Promise<Event> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('events')
+    .update({
+      archived_at: null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error unarchiving event:', error)
+    throw error
+  }
+
+  return data
+}
+
 export async function uploadEventBanner(
   eventId: string,
   file: File
@@ -109,6 +151,30 @@ export async function uploadEventBanner(
   return data.publicUrl
 }
 
+export async function uploadEventLogo(
+  eventId: string,
+  file: File
+): Promise<string> {
+  const supabase = createClient()
+
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${eventId}-logo.${fileExt}`
+  const filePath = `events/${fileName}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('events')
+    .upload(filePath, file, { upsert: true })
+
+  if (uploadError) {
+    console.error('Error uploading logo:', uploadError)
+    throw uploadError
+  }
+
+  const { data } = supabase.storage.from('events').getPublicUrl(filePath)
+
+  return data.publicUrl
+}
+
 export function generateSlug(name: string): string {
   return name
     .toLowerCase()
@@ -123,4 +189,37 @@ export function generateInviteCode(): string {
     code += chars.charAt(Math.floor(Math.random() * chars.length))
   }
   return code
+}
+
+export function getEventStatus(event: Event): 'upcoming' | 'active' | 'past' {
+  const now = new Date()
+  const startDate = new Date(event.start_date)
+  const endDate = new Date(event.end_date)
+
+  if (now < startDate) return 'upcoming'
+  if (now > endDate) return 'past'
+  return 'active'
+}
+
+export async function getEventStats(eventId: string): Promise<{
+  attendeesCount: number
+  leadsCount: number
+  sessionsCount: number
+  speakersCount: number
+}> {
+  const supabase = createClient()
+
+  const [attendees, leads, sessions, speakers] = await Promise.all([
+    supabase.from('attendees').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
+    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
+    supabase.from('sessions').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
+    supabase.from('speakers').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
+  ])
+
+  return {
+    attendeesCount: attendees.count || 0,
+    leadsCount: leads.count || 0,
+    sessionsCount: sessions.count || 0,
+    speakersCount: speakers.count || 0,
+  }
 }
