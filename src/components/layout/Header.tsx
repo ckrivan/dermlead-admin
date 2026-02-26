@@ -1,6 +1,7 @@
 'use client'
 
-import { Bell, Search, User } from 'lucide-react'
+import { Bell, Search } from 'lucide-react'
+import { UserMenu } from './UserMenu'
 
 interface HeaderProps {
   title: string
@@ -43,11 +44,7 @@ export function Header({ title, subtitle }: HeaderProps) {
           </button>
 
           {/* User menu */}
-          <button className="flex items-center gap-2 p-2 rounded-lg hover:bg-[var(--background-tertiary)] transition-colors">
-            <div className="w-8 h-8 rounded-full bg-[var(--accent-primary)] flex items-center justify-center">
-              <User size={18} className="text-white" />
-            </div>
-          </button>
+          <UserMenu />
         </div>
       </div>
     </header>

@@ -3,6 +3,21 @@
 export interface Organization {
   id: string
   name: string
+  subscription_tier: string | null
+  created_at: string
+}
+
+export interface Profile {
+  id: string
+  full_name: string | null
+  email: string | null
+  avatar_url: string | null
+  role: 'admin' | 'rep'
+  organization_id: string | null
+  is_active: boolean
+  invited_by: string | null
+  invited_at: string | null
+  last_login_at: string | null
   created_at: string
 }
 
