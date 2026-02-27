@@ -134,7 +134,7 @@ function NewSessionForm() {
           end_time: formData.end_time,
           location: formData.location || null,
           track: formData.track || null,
-          learning_objectives: null,
+          objectives: null,
         },
         validAssignments
       )

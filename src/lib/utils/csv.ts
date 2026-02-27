@@ -90,6 +90,9 @@ export interface SponsorCSVRow {
   contact_name?: string
   contact_email?: string
   booth_number?: string
+  is_featured?: string
+  logo_url?: string
+  banner_url?: string
   // Whova format (mapped during import)
   '*company_name'?: string
   '*contact_first_name'?: string
@@ -101,6 +104,7 @@ export interface SponsorCSVRow {
   '*website'?: string
   website?: string
   '*tier'?: string
+  featured?: string
 }
 
 export function parseCSV<T>(csvText: string): T[] {
@@ -346,48 +350,59 @@ export function generateExhibitorTemplate(): string {
 }
 
 export function generateSponsorTemplate(): string {
-  // Match Whova format: *Company Name, Booth Number, *Contact First Name, *Contact Last Name, *Email, Description, *Website, *Tier
   const headers = [
     '*Company Name',
+    '*Tier',
     'Booth Number',
+    'Description',
     '*Contact First Name',
     '*Contact Last Name',
     '*Email',
-    'Description',
-    '*Website',
-    '*Tier',
+    'Website',
+    'Featured (yes/no)',
+    'Logo URL',
+    'Banner URL',
   ]
 
   const exampleRows = [
     [
       'Pfizer Dermatology',
+      'Platinum',
       'Main Hall',
+      'Global pharmaceutical leader in dermatology treatments.',
       'Sarah',
       'Johnson',
       'sarah.johnson@pfizer.com',
-      'Global pharmaceutical leader in dermatology treatments.',
       'https://pfizer.com',
-      'Platinum',
+      'yes',
+      '',
+      '',
     ],
     [
       'SkinCare Research Inc',
+      'Gold',
       'C102',
+      'Advancing dermatological research and innovation.',
       'Michael',
       'Brown',
       'michael@skincare-research.com',
-      'Advancing dermatological research and innovation.',
       'https://skincare-research.com',
-      'Gold',
+      'yes',
+      '',
+      '',
     ],
     [
       'DermConnect',
+      'Silver',
       '',
+      'Connecting dermatology professionals worldwide.',
       'Emily',
       'Davis',
       'emily@dermconnect.com',
-      'Connecting dermatology professionals worldwide.',
       'https://dermconnect.com',
-      'Silver',
+      'no',
+      '',
+      '',
     ],
   ]
 
@@ -592,6 +607,9 @@ export function normalizeSponsorRow(row: SponsorCSVRow): {
   contact_name: string | null
   contact_email: string | null
   booth_number: string | null
+  is_featured: boolean
+  logo_url: string | null
+  banner_url: string | null
 } {
   const companyName = row['*company_name'] || row.company_name || ''
   const firstName = row['*contact_first_name'] || row.contact_first_name || ''
@@ -610,6 +628,12 @@ export function normalizeSponsorRow(row: SponsorCSVRow): {
   const validTiers = ['platinum', 'gold', 'silver', 'bronze', 'partner']
   const finalTier = validTiers.includes(normalizedTier) ? normalizedTier : 'partner'
 
+  // is_featured: explicit CSV value takes precedence, otherwise auto-set for platinum/gold
+  const featuredRaw = (row.is_featured || row.featured || (row as Record<string, string | undefined>)['featured_(yes/no)'] || '').toLowerCase().trim()
+  const isFeatured = featuredRaw
+    ? featuredRaw === 'yes' || featuredRaw === 'true' || featuredRaw === '1'
+    : finalTier === 'platinum' || finalTier === 'gold'
+
   return {
     company_name: companyName.trim(),
     description: row.description?.trim() || null,
@@ -618,5 +642,8 @@ export function normalizeSponsorRow(row: SponsorCSVRow): {
     contact_name: contactName || null,
     contact_email: email?.trim()?.toLowerCase() || null,
     booth_number: row.booth_number?.trim() || null,
+    is_featured: isFeatured,
+    logo_url: row.logo_url?.trim() || null,
+    banner_url: row.banner_url?.trim() || null,
   }
 }

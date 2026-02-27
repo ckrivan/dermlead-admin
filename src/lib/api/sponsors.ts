@@ -223,7 +223,9 @@ export async function bulkCreateSponsors(
       contact_name: sponsor.contact_name,
       contact_email: sponsor.contact_email,
       booth_number: sponsor.booth_number,
-      is_featured: sponsor.tier === 'platinum' || sponsor.tier === 'gold',
+      is_featured: sponsor.is_featured,
+      logo_url: sponsor.logo_url,
+      banner_url: sponsor.banner_url,
       display_order: 0,
     })
 

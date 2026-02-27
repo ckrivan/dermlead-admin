@@ -5,6 +5,7 @@ import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button, Input } from '@/components/ui'
 import {
   getAttendeesWithGroups,
+  createAttendee,
   deleteAttendee,
   checkInAttendee,
   undoCheckIn,
@@ -53,6 +54,19 @@ export default function AttendeesPage() {
     null
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Add attendee modal state
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [addSubmitting, setAddSubmitting] = useState(false)
+  const [addForm, setAddForm] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    specialty: '',
+    institution: '',
+    badge_type: 'attendee',
+  })
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('')
@@ -286,6 +300,43 @@ export default function AttendeesPage() {
     }
   }
 
+  const handleAddAttendee = async () => {
+    if (!selectedEventId || !addForm.first_name.trim() || !addForm.last_name.trim() || !addForm.email.trim()) return
+    setAddSubmitting(true)
+    try {
+      const selectedEvent = events.find((e) => e.id === selectedEventId)
+      await createAttendee({
+        event_id: selectedEventId,
+        organization_id: selectedEvent?.organization_id || '',
+        profile_id: null,
+        first_name: addForm.first_name.trim(),
+        last_name: addForm.last_name.trim(),
+        email: addForm.email.trim(),
+        phone: addForm.phone.trim() || null,
+        specialty: addForm.specialty.trim() || null,
+        institution: addForm.institution.trim() || null,
+        title: null,
+        badge_type: addForm.badge_type || 'attendee',
+        badge_generated: false,
+        badge_printed: false,
+        qr_data: null,
+        registered_at: null,
+        checked_in: false,
+        checked_in_at: null,
+        checked_in_by: null,
+        updated_at: new Date().toISOString(),
+      })
+      setShowAddModal(false)
+      setAddForm({ first_name: '', last_name: '', email: '', phone: '', specialty: '', institution: '', badge_type: 'attendee' })
+      await refetchAttendees()
+    } catch (error) {
+      console.error('Error adding attendee:', error)
+      alert('Failed to add attendee. Please try again.')
+    } finally {
+      setAddSubmitting(false)
+    }
+  }
+
   const handleExport = () => {
     const csvContent = [
       ['Name', 'Email', 'Badge Type', 'Groups', 'Checked In'],
@@ -347,7 +398,7 @@ export default function AttendeesPage() {
                 >
                   Import from CSV
                 </Button>
-                <Button icon={<Plus size={18} />}>Add Attendee</Button>
+                <Button icon={<Plus size={18} />} onClick={() => setShowAddModal(true)}>Add Attendee</Button>
               </div>
             </CardBody>
           </Card>
@@ -529,7 +580,7 @@ export default function AttendeesPage() {
                 >
                   Import
                 </Button>
-                <Button size="sm" icon={<Plus size={16} />}>
+                <Button size="sm" icon={<Plus size={16} />} onClick={() => setShowAddModal(true)}>
                   Add Attendee
                 </Button>
               </div>
@@ -696,6 +747,112 @@ export default function AttendeesPage() {
           </>
         )}
       </div>
+
+      {/* Add Attendee Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
+              <h3 className="font-semibold text-[var(--foreground)]">Add Attendee</h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)]"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">First Name *</label>
+                  <input
+                    type="text"
+                    value={addForm.first_name}
+                    onChange={(e) => setAddForm({ ...addForm, first_name: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                    placeholder="First name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Last Name *</label>
+                  <input
+                    type="text"
+                    value={addForm.last_name}
+                    onChange={(e) => setAddForm({ ...addForm, last_name: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                    placeholder="Last name"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Email *</label>
+                <input
+                  type="email"
+                  value={addForm.email}
+                  onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                  placeholder="email@example.com"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Phone</label>
+                  <input
+                    type="text"
+                    value={addForm.phone}
+                    onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                    placeholder="(555) 000-0000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Badge Type</label>
+                  <select
+                    value={addForm.badge_type}
+                    onChange={(e) => setAddForm({ ...addForm, badge_type: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                  >
+                    {BADGE_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Specialty</label>
+                <input
+                  type="text"
+                  value={addForm.specialty}
+                  onChange={(e) => setAddForm({ ...addForm, specialty: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                  placeholder="e.g. Dermatology"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Institution</label>
+                <input
+                  type="text"
+                  value={addForm.institution}
+                  onChange={(e) => setAddForm({ ...addForm, institution: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                  placeholder="Hospital / University"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t border-[var(--card-border)]">
+              <Button variant="ghost" onClick={() => setShowAddModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddAttendee}
+                disabled={addSubmitting || !addForm.first_name.trim() || !addForm.last_name.trim() || !addForm.email.trim()}
+              >
+                {addSubmitting ? 'Adding...' : 'Add Attendee'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Import Modal */}
       {showImportModal && (

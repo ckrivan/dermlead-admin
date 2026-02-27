@@ -319,7 +319,7 @@ export async function bulkCreateSessions(
         end_time: session.end_time,
         location: session.location,
         track: session.track,
-        learning_objectives: null,
+        objectives: null,
       })
       .select()
       .single()

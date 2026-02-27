@@ -69,7 +69,7 @@ export interface Session {
   end_time: string
   location: string | null
   track: string | null
-  learning_objectives: string[] | null
+  objectives: string[] | null
   created_at: string
   updated_at: string
 }
