@@ -46,3 +46,6 @@ next-env.d.ts
 *.mp4
 *.mov
 *.avi
+
+# Claude Code local settings (may contain tokens)
+.claude/settings.local.json
