@@ -44,7 +44,7 @@ export function Dialog({ isOpen, onClose, title, children }: DialogProps) {
       {/* Dialog */}
       <div
         ref={dialogRef}
-        className="relative w-full max-w-md mx-4 bg-[var(--background-primary)] rounded-lg shadow-xl border border-[var(--card-border)] overflow-hidden"
+        className="relative w-full max-w-md mx-4 bg-[var(--card-bg)] rounded-lg shadow-xl border border-[var(--card-border)] overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--card-border)]">
@@ -90,7 +90,7 @@ export function ConfirmDialog({
   return (
     <Dialog isOpen={isOpen} onClose={onClose} title={title}>
       <div className="space-y-4">
-        <p className="text-[var(--foreground-muted)]">{message}</p>
+        <p className="text-[var(--foreground)]">{message}</p>
 
         <div className="flex justify-end gap-3 pt-2">
           <Button variant="ghost" onClick={onClose} disabled={loading}>
