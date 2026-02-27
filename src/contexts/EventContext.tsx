@@ -48,11 +48,21 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false
 
+    // Safety net: never block the UI forever if event fetch hangs
+    const safetyTimer = setTimeout(() => {
+      if (!cancelled) {
+        console.warn('[EventContext] event load timed out')
+        cancelled = true
+        setIsLoading(false)
+      }
+    }, 8000)
+
     async function load(attempt = 0): Promise<void> {
       try {
         const data = await getEvents()
         if (cancelled) return
 
+        clearTimeout(safetyTimer)
         setEvents(data)
 
         if (data.length === 0) {
@@ -91,6 +101,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         } else {
           console.error('EventContext: failed to load events', err)
         }
+        clearTimeout(safetyTimer)
         setIsLoading(false)
       }
     }
@@ -98,6 +109,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
     load()
     return () => {
       cancelled = true
+      clearTimeout(safetyTimer)
     }
   }, [authLoading]) // Re-fires once auth resolves
 

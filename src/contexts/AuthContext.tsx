@@ -72,6 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // Safety net: if auth hangs for any reason (stale cookies, network, etc.)
+    // force-clear and redirect to login rather than spinning forever.
+    const safetyTimer = setTimeout(async () => {
+      console.warn('[AuthContext] auth init timed out — clearing session')
+      await supabase.auth.signOut()
+      setLoading(false)
+    }, 8000)
+
     // Get initial session
     const initAuth = async () => {
       try {
@@ -88,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.error('[AuthContext] initAuth failed:', err)
       } finally {
+        clearTimeout(safetyTimer)
         setLoading(false)
       }
     }
@@ -116,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     return () => {
+      clearTimeout(safetyTimer)
       subscription.unsubscribe()
     }
   }, [])
