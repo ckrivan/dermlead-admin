@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button, Input } from '@/components/ui'
 import {
@@ -86,6 +87,10 @@ export default function AttendeesPage() {
   const [openMoreMenu, setOpenMoreMenu] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [checkingIn, setCheckingIn] = useState<string | null>(null)
+  const [openMoreMenuRect, setOpenMoreMenuRect] = useState<DOMRect | null>(null)
+
+  // Roster search error state
+  const [rosterError, setRosterError] = useState<string | null>(null)
 
   // Refetch function for real-time updates
   const refetchAttendees = useCallback(async () => {
@@ -295,6 +300,7 @@ export default function AttendeesPage() {
 
   const handleRosterSearch = (query: string) => {
     setRosterQuery(query)
+    setRosterError(null)
     if (rosterDebounceRef.current) clearTimeout(rosterDebounceRef.current)
     if (!query.trim()) {
       setRosterResults([])
@@ -305,7 +311,9 @@ export default function AttendeesPage() {
       try {
         const results = await searchAttendeeRoster(query)
         setRosterResults(results as unknown as AttendeeWithGroups[])
-      } catch {
+      } catch (err) {
+        console.error('Roster search error:', err)
+        setRosterError('Search failed. Please try again.')
         setRosterResults([])
       } finally {
         setRosterSearching(false)
@@ -699,36 +707,22 @@ export default function AttendeesPage() {
                               </Button>
 
                               {/* More Menu */}
-                              <div className="relative">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  icon={<MoreVertical size={14} />}
-                                  onClick={() =>
-                                    setOpenMoreMenu(
-                                      openMoreMenu === attendee.id ? null : attendee.id
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                icon={<MoreVertical size={14} />}
+                                onClick={(e) => {
+                                  if (openMoreMenu === attendee.id) {
+                                    setOpenMoreMenu(null)
+                                    setOpenMoreMenuRect(null)
+                                  } else {
+                                    setOpenMoreMenu(attendee.id)
+                                    setOpenMoreMenuRect(
+                                      (e.currentTarget as HTMLElement).getBoundingClientRect()
                                     )
                                   }
-                                />
-                                {openMoreMenu === attendee.id && (
-                                  <>
-                                    <div
-                                      className="fixed inset-0 z-10"
-                                      onClick={() => setOpenMoreMenu(null)}
-                                    />
-                                    <div className="absolute right-0 top-full mt-1 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg shadow-lg z-20 py-1 min-w-[140px]">
-                                      <button
-                                        onClick={() => handleDelete(attendee.id)}
-                                        disabled={deleting === attendee.id}
-                                        className="w-full px-3 py-2 text-left text-sm text-[var(--accent-danger)] hover:bg-[var(--background-tertiary)] flex items-center gap-2"
-                                      >
-                                        <Trash2 size={14} />
-                                        {deleting === attendee.id ? 'Deleting...' : 'Delete'}
-                                      </button>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
+                                }}
+                              />
                             </div>
                           </td>
                         </tr>
@@ -797,6 +791,9 @@ export default function AttendeesPage() {
                       </button>
                     ))}
                   </div>
+                )}
+                {rosterError && (
+                  <p className="mt-1 text-xs text-[var(--accent-danger)]">{rosterError}</p>
                 )}
               </div>
 
@@ -1018,6 +1015,37 @@ export default function AttendeesPage() {
           </div>
         </div>
       )}
+      {/* Attendee row ⋮ menu — rendered via portal so it's never clipped by overflow-x-auto */}
+      {openMoreMenu && openMoreMenuRect &&
+        createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => { setOpenMoreMenu(null); setOpenMoreMenuRect(null) }}
+            />
+            <div
+              className="fixed z-50 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg shadow-lg py-1 min-w-[140px]"
+              style={{
+                top: openMoreMenuRect.bottom + 4,
+                right: window.innerWidth - openMoreMenuRect.right,
+              }}
+            >
+              <button
+                onClick={() => {
+                  handleDelete(openMoreMenu)
+                  setOpenMoreMenu(null)
+                  setOpenMoreMenuRect(null)
+                }}
+                disabled={deleting === openMoreMenu}
+                className="w-full px-3 py-2 text-left text-sm text-[var(--accent-danger)] hover:bg-[var(--background-tertiary)] flex items-center gap-2"
+              >
+                <Trash2 size={14} />
+                {deleting === openMoreMenu ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </>,
+          document.body
+        )}
     </>
   )
 }
