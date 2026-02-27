@@ -58,11 +58,17 @@ export async function proxy(request: NextRequest) {
   }
 
   // Check if user has admin role
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('role, is_active')
     .eq('id', user.id)
     .single()
+
+  if (profileError) {
+    // Transient DB error — don't lock out authenticated users
+    console.error('[proxy] Profile lookup failed:', profileError.message)
+    return supabaseResponse
+  }
 
   if (!profile || profile.role !== 'admin' || !profile.is_active) {
     return NextResponse.redirect(new URL('/unauthorized', request.url))

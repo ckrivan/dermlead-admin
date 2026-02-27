@@ -7,6 +7,7 @@ import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnounc
 import { getGroups } from '@/lib/api/groups'
 import { getEvents } from '@/lib/api/events'
 import type { Announcement, AttendeeGroup, Event } from '@/types/database'
+import { isAbortError } from '@/contexts/EventContext'
 import { Plus, Megaphone, Edit, Trash2, Send, X, Clock, CheckCircle, Users } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 
@@ -27,18 +28,23 @@ export default function AnnouncementsPage() {
   })
 
   useEffect(() => {
+    let cancelled = false
     async function loadEvents() {
       try {
         const data = await getEvents()
+        if (cancelled) return
         setEvents(data)
         if (data.length > 0) {
           setSelectedEventId(data[0].id)
         }
-      } catch (error) {
-        console.error('Error loading events:', error)
+      } catch (err: unknown) {
+        if (cancelled) return
+        if (isAbortError(err)) return
+        console.error('Error loading events:', err)
       }
     }
     loadEvents()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {

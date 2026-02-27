@@ -21,6 +21,7 @@ import {
 } from '@/lib/utils/csv'
 import { GroupAssignment } from '@/components/GroupAssignment'
 import type { Sponsor, Event, EventGroup } from '@/types/database'
+import { isAbortError } from '@/contexts/EventContext'
 import {
   Plus,
   Award,
@@ -42,6 +43,7 @@ export default function SponsorsPage() {
   const [groups, setGroups] = useState<EventGroup[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedTier, setSelectedTier] = useState<string>('')
 
   // Modal states
@@ -70,18 +72,25 @@ export default function SponsorsPage() {
   })
 
   useEffect(() => {
+    let cancelled = false
     async function loadEvents() {
       try {
         const eventsData = await getEvents()
+        if (cancelled) return
         setEvents(eventsData)
         if (eventsData.length > 0) {
           setSelectedEventId(eventsData[0].id)
         }
-      } catch (error) {
-        console.error('Error loading events:', error)
+      } catch (err: unknown) {
+        if (cancelled) return
+        if (isAbortError(err)) return
+        console.error('Error loading events:', err)
+        setError('Failed to load events. Check your connection and try again.')
+        setLoading(false)
       }
     }
     loadEvents()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -101,8 +110,9 @@ export default function SponsorsPage() {
         ])
         setSponsors(sponsorsData)
         setGroups(groupsData)
-      } catch (error) {
-        console.error('Error loading sponsors:', error)
+      } catch (err) {
+        console.error('Error loading sponsors:', err)
+        setError('Failed to load sponsors. Check your connection and try again.')
       } finally {
         setLoading(false)
       }
@@ -329,7 +339,16 @@ export default function SponsorsPage() {
         )}
 
         {/* Sponsors List */}
-        {loading ? (
+        {error ? (
+          <Card>
+            <CardBody className="text-center py-12">
+              <p className="text-[var(--accent-danger)] mb-4">{error}</p>
+              <Button variant="secondary" onClick={() => window.location.reload()}>
+                Retry
+              </Button>
+            </CardBody>
+          </Card>
+        ) : loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)]" />
           </div>

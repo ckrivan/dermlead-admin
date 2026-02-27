@@ -15,11 +15,11 @@ import {
   AttendeeWithGroups,
 } from '@/lib/api/attendees'
 import { getGroups } from '@/lib/api/groups'
-import { getEvents } from '@/lib/api/events'
 import { downloadCSV, parseCSV } from '@/lib/utils/csv'
+import { useEvent } from '@/contexts/EventContext'
 import { createClient } from '@/lib/supabase/client'
 import { GroupAssignment } from '@/components/GroupAssignment'
-import type { Event, EventGroup } from '@/types/database'
+import type { EventGroup } from '@/types/database'
 import {
   Plus,
   Users,
@@ -44,10 +44,11 @@ import {
 import { format, parseISO } from 'date-fns'
 
 export default function AttendeesPage() {
+  const { selectedEvent } = useEvent()
+  const selectedEventId = selectedEvent?.id ?? ''
+
   const [attendees, setAttendees] = useState<AttendeeWithGroups[]>([])
   const [groups, setGroups] = useState<EventGroup[]>([])
-  const [events, setEvents] = useState<Event[]>([])
-  const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [showImportModal, setShowImportModal] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -85,21 +86,6 @@ export default function AttendeesPage() {
   const [openMoreMenu, setOpenMoreMenu] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [checkingIn, setCheckingIn] = useState<string | null>(null)
-
-  useEffect(() => {
-    async function loadEvents() {
-      try {
-        const data = await getEvents()
-        setEvents(data)
-        if (data.length > 0) {
-          setSelectedEventId(data[0].id)
-        }
-      } catch (error) {
-        console.error('Error loading events:', error)
-      }
-    }
-    loadEvents()
-  }, [])
 
   // Refetch function for real-time updates
   const refetchAttendees = useCallback(async () => {
@@ -345,7 +331,6 @@ export default function AttendeesPage() {
     if (!selectedEventId || !addForm.first_name.trim() || !addForm.last_name.trim() || !addForm.email.trim()) return
     setAddSubmitting(true)
     try {
-      const selectedEvent = events.find((e) => e.id === selectedEventId)
       await createAttendee({
         event_id: selectedEventId,
         organization_id: selectedEvent?.organization_id || '',
@@ -402,23 +387,6 @@ export default function AttendeesPage() {
       <Header title="Attendees" subtitle="Manage event attendees and registrations" />
 
       <div className="p-6 space-y-4">
-        {/* Event Selector */}
-        <div className="flex items-center gap-4">
-          <label className="text-sm font-medium text-[var(--foreground)]">Event:</label>
-          <select
-            value={selectedEventId}
-            onChange={(e) => setSelectedEventId(e.target.value)}
-            className="px-4 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)] min-w-[250px]"
-          >
-            <option value="">Select an event</option>
-            {events.map((event) => (
-              <option key={event.id} value={event.id}>
-                {event.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)]" />
@@ -443,18 +411,6 @@ export default function AttendeesPage() {
                 </Button>
                 <Button icon={<Plus size={18} />} onClick={() => setShowAddModal(true)}>Add Attendee</Button>
               </div>
-            </CardBody>
-          </Card>
-        ) : !selectedEventId ? (
-          <Card>
-            <CardBody className="text-center py-12">
-              <Users size={48} className="mx-auto text-[var(--foreground-subtle)] mb-4" />
-              <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">
-                Select an event
-              </h3>
-              <p className="text-[var(--foreground-muted)]">
-                Choose an event to view its attendees.
-              </p>
             </CardBody>
           </Card>
         ) : (

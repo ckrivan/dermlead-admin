@@ -15,6 +15,7 @@ import { getEvents } from '@/lib/api/events'
 import { getSpeakers } from '@/lib/api/speakers'
 import { parseCSV, generateSessionTemplate, downloadCSV, SessionCSVRow } from '@/lib/utils/csv'
 import type { Session, Event, Speaker } from '@/types/database'
+import { isAbortError } from '@/contexts/EventContext'
 import {
   Plus,
   Presentation,
@@ -41,6 +42,7 @@ export default function SessionsPage() {
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showImportModal, setShowImportModal] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ created: number; errors: string[] } | null>(
@@ -57,18 +59,25 @@ export default function SessionsPage() {
   const [duplicating, setDuplicating] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     async function loadEvents() {
       try {
         const data = await getEvents()
+        if (cancelled) return
         setEvents(data)
         if (data.length > 0) {
           setSelectedEventId(data[0].id)
         }
-      } catch (error) {
-        console.error('Error loading events:', error)
+      } catch (err: unknown) {
+        if (cancelled) return
+        if (isAbortError(err)) return
+        console.error('Error loading events:', err)
+        setError('Failed to load events. Check your connection and try again.')
+        setLoading(false)
       }
     }
     loadEvents()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -96,8 +105,9 @@ export default function SessionsPage() {
         } else {
           setSelectedDate('')
         }
-      } catch (error) {
-        console.error('Error loading data:', error)
+      } catch (err) {
+        console.error('Error loading data:', err)
+        setError('Failed to load sessions. Check your connection and try again.')
       } finally {
         setLoading(false)
       }
@@ -283,7 +293,16 @@ export default function SessionsPage() {
           </select>
         </div>
 
-        {loading ? (
+        {error ? (
+          <Card>
+            <CardBody className="text-center py-12">
+              <p className="text-[var(--accent-danger)] mb-4">{error}</p>
+              <Button variant="secondary" onClick={() => window.location.reload()}>
+                Retry
+              </Button>
+            </CardBody>
+          </Card>
+        ) : loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)]" />
           </div>

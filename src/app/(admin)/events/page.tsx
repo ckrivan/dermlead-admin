@@ -5,6 +5,7 @@ import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button } from '@/components/ui'
 import { getEvents, getEventStatus, getEventStats } from '@/lib/api/events'
 import type { Event } from '@/types/database'
+import { isAbortError } from '@/contexts/EventContext'
 import { Plus, Calendar, MapPin, Users, Grid3x3, List, Search } from 'lucide-react'
 import { format } from 'date-fns'
 import Link from 'next/link'
@@ -24,14 +25,17 @@ export default function EventsPage() {
   const [events, setEvents] = useState<EventWithStats[]>([])
   const [filteredEvents, setFilteredEvents] = useState<EventWithStats[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'upcoming' | 'active' | 'past'>('all')
 
   useEffect(() => {
+    let cancelled = false
     async function loadEvents() {
       try {
         const data = await getEvents()
+        if (cancelled) return
 
         // Load stats for each event
         const eventsWithStats = await Promise.all(
@@ -46,15 +50,20 @@ export default function EventsPage() {
           })
         )
 
+        if (cancelled) return
         setEvents(eventsWithStats)
         setFilteredEvents(eventsWithStats)
-      } catch (error) {
-        console.error('Error loading events:', error)
+      } catch (err: unknown) {
+        if (cancelled) return
+        if (isAbortError(err)) return
+        console.error('Error loading events:', err)
+        setError('Failed to load events. Check your connection and try again.')
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     loadEvents()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -162,7 +171,16 @@ export default function EventsPage() {
           </div>
         </div>
 
-        {loading ? (
+        {error ? (
+          <Card>
+            <CardBody className="text-center py-12">
+              <p className="text-[var(--accent-danger)] mb-4">{error}</p>
+              <Button variant="secondary" onClick={() => window.location.reload()}>
+                Retry
+              </Button>
+            </CardBody>
+          </Card>
+        ) : loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)]" />
           </div>

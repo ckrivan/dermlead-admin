@@ -8,6 +8,7 @@ import { createSession, SESSION_TYPES, SPEAKER_ROLES } from '@/lib/api/sessions'
 import { getEvents } from '@/lib/api/events'
 import { getSpeakers } from '@/lib/api/speakers'
 import type { Event, Speaker } from '@/types/database'
+import { isAbortError } from '@/contexts/EventContext'
 import { ArrowLeft, Save, Plus, X, User } from 'lucide-react'
 import Link from 'next/link'
 
@@ -41,15 +42,20 @@ function NewSessionForm() {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
+    let cancelled = false
     async function loadEvents() {
       try {
         const data = await getEvents()
+        if (cancelled) return
         setEvents(data)
-      } catch (error) {
-        console.error('Error loading events:', error)
+      } catch (err: unknown) {
+        if (cancelled) return
+        if (isAbortError(err)) return
+        console.error('Error loading events:', err)
       }
     }
     loadEvents()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {

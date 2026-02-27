@@ -7,6 +7,7 @@ import { Card, CardBody, CardFooter, Button, Input, Textarea } from '@/component
 import { createSpeaker, uploadSpeakerPhoto } from '@/lib/api/speakers'
 import { getEvents } from '@/lib/api/events'
 import type { Event } from '@/types/database'
+import { isAbortError } from '@/contexts/EventContext'
 import { ArrowLeft, Upload, User, Save } from 'lucide-react'
 import Link from 'next/link'
 
@@ -35,15 +36,20 @@ function NewSpeakerForm() {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
+    let cancelled = false
     async function loadEvents() {
       try {
         const data = await getEvents()
+        if (cancelled) return
         setEvents(data)
-      } catch (error) {
-        console.error('Error loading events:', error)
+      } catch (err: unknown) {
+        if (cancelled) return
+        if (isAbortError(err)) return
+        console.error('Error loading events:', err)
       }
     }
     loadEvents()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {

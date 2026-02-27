@@ -21,6 +21,7 @@ import {
 } from '@/lib/utils/csv'
 import { GroupAssignment } from '@/components/GroupAssignment'
 import type { Exhibitor, Event, EventGroup } from '@/types/database'
+import { isAbortError } from '@/contexts/EventContext'
 import {
   Plus,
   Building2,
@@ -72,18 +73,23 @@ export default function ExhibitorsPage() {
   })
 
   useEffect(() => {
+    let cancelled = false
     async function loadEvents() {
       try {
         const eventsData = await getEvents()
+        if (cancelled) return
         setEvents(eventsData)
         if (eventsData.length > 0) {
           setSelectedEventId(eventsData[0].id)
         }
-      } catch (error) {
-        console.error('Error loading events:', error)
+      } catch (err: unknown) {
+        if (cancelled) return
+        if (isAbortError(err)) return
+        console.error('Error loading events:', err)
       }
     }
     loadEvents()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {

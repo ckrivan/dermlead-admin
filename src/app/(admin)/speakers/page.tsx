@@ -10,6 +10,7 @@ import { getGroups } from '@/lib/api/groups'
 import { parseCSV, generateSpeakerTemplate, downloadCSV, SpeakerCSVRow } from '@/lib/utils/csv'
 import { GroupAssignment } from '@/components/GroupAssignment'
 import type { Speaker, Event, EventGroup } from '@/types/database'
+import { isAbortError } from '@/contexts/EventContext'
 import { Plus, User, Mail, Building, Edit, Trash2, Upload, Download, X, Send, CheckSquare, Square, Tag } from 'lucide-react'
 import { sendBulkMessage } from '@/lib/api/speaker-messages'
 
@@ -19,6 +20,7 @@ export default function SpeakersPage() {
   const [groups, setGroups] = useState<EventGroup[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showImportModal, setShowImportModal] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ created: number; errors: string[] } | null>(null)
@@ -38,20 +40,27 @@ export default function SpeakersPage() {
   const [messageResult, setMessageResult] = useState<{ sent: number; errors: string[] } | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     async function loadData() {
       try {
         const [eventsData] = await Promise.all([getEvents()])
+        if (cancelled) return
         setEvents(eventsData)
 
         // Auto-select first event if available
         if (eventsData.length > 0) {
           setSelectedEventId(eventsData[0].id)
         }
-      } catch (error) {
-        console.error('Error loading data:', error)
+      } catch (err: unknown) {
+        if (cancelled) return
+        if (isAbortError(err)) return
+        console.error('Error loading events:', err)
+        setError('Failed to load events. Check your connection and try again.')
+        setLoading(false)
       }
     }
     loadData()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -71,8 +80,9 @@ export default function SpeakersPage() {
         ])
         setSpeakers(speakersData)
         setGroups(groupsData)
-      } catch (error) {
-        console.error('Error loading speakers:', error)
+      } catch (err) {
+        console.error('Error loading speakers:', err)
+        setError('Failed to load speakers. Check your connection and try again.')
       } finally {
         setLoading(false)
       }
@@ -247,7 +257,16 @@ export default function SpeakersPage() {
         </div>
 
         {/* Speakers Grid */}
-        {loading ? (
+        {error ? (
+          <Card>
+            <CardBody className="text-center py-12">
+              <p className="text-[var(--accent-danger)] mb-4">{error}</p>
+              <Button variant="secondary" onClick={() => window.location.reload()}>
+                Retry
+              </Button>
+            </CardBody>
+          </Card>
+        ) : loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)]" />
           </div>

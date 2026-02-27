@@ -17,9 +17,11 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  ChevronsUpDown,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useEvent } from '@/contexts/EventContext'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -39,6 +41,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { signOut } = useAuth()
+  const { selectedEvent, hasManyEvents, setShowPicker } = useEvent()
   const [collapsed, setCollapsed] = useState(false)
 
   const handleSignOut = async () => {
@@ -66,6 +69,43 @@ export function Sidebar() {
           {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
         </button>
       </div>
+
+      {/* Event indicator */}
+      {selectedEvent && (
+        <div className="px-3 py-3 border-b border-white/20">
+          {collapsed ? (
+            <button
+              onClick={() => hasManyEvents && setShowPicker(true)}
+              className="flex w-full justify-center p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+              title={selectedEvent.name}
+            >
+              <Calendar size={18} className="text-white/80" />
+            </button>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wider px-1">
+                Current Event
+              </p>
+              <button
+                onClick={() => hasManyEvents && setShowPicker(true)}
+                className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 transition-colors ${
+                  hasManyEvents
+                    ? 'hover:bg-white/10 cursor-pointer'
+                    : 'cursor-default'
+                }`}
+                disabled={!hasManyEvents}
+              >
+                <span className="flex-1 text-left text-sm font-medium text-white truncate">
+                  {selectedEvent.name}
+                </span>
+                {hasManyEvents && (
+                  <ChevronsUpDown size={14} className="shrink-0 text-white/60" />
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 space-y-1">

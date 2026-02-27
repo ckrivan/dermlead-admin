@@ -15,6 +15,7 @@ import {
 } from '@/lib/api/branding'
 import { getEvents } from '@/lib/api/events'
 import type { Event } from '@/types/database'
+import { isAbortError } from '@/contexts/EventContext'
 import {
   Palette,
   Image,
@@ -58,18 +59,23 @@ export default function BrandingPage() {
   const bannerInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    let cancelled = false
     async function loadEvents() {
       try {
         const eventsData = await getEvents()
+        if (cancelled) return
         setEvents(eventsData)
         if (eventsData.length > 0) {
           setSelectedEventId(eventsData[0].id)
         }
-      } catch (error) {
-        console.error('Error loading events:', error)
+      } catch (err: unknown) {
+        if (cancelled) return
+        if (isAbortError(err)) return
+        console.error('Error loading events:', err)
       }
     }
     loadEvents()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {

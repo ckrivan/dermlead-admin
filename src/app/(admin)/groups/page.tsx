@@ -7,6 +7,7 @@ import { getGroups, createGroup, updateGroup, deleteGroup, initializeDefaultGrou
 import { getEvents } from '@/lib/api/events'
 import { parseCSV, generateGroupTemplate, downloadCSV, GroupCSVRow } from '@/lib/utils/csv'
 import type { EventGroup, Event } from '@/types/database'
+import { isAbortError } from '@/contexts/EventContext'
 import { Plus, Users, Edit, Trash2, X, Palette, Upload, Download } from 'lucide-react'
 
 export default function GroupsPage() {
@@ -27,18 +28,23 @@ export default function GroupsPage() {
   })
 
   useEffect(() => {
+    let cancelled = false
     async function loadEvents() {
       try {
         const data = await getEvents()
+        if (cancelled) return
         setEvents(data)
         if (data.length > 0) {
           setSelectedEventId(data[0].id)
         }
-      } catch (error) {
-        console.error('Error loading events:', error)
+      } catch (err: unknown) {
+        if (cancelled) return
+        if (isAbortError(err)) return
+        console.error('Error loading events:', err)
       }
     }
     loadEvents()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {

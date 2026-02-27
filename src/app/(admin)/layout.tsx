@@ -1,5 +1,8 @@
 import { AdminLayout } from '@/components/layout/AdminLayout'
+import { AdminLoadingGate } from '@/components/layout/AdminLoadingGate'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { EventProvider } from '@/contexts/EventContext'
+import { EventPicker } from '@/components/events/EventPicker'
 
 export default function AdminLayoutWrapper({
   children,
@@ -8,7 +11,12 @@ export default function AdminLayoutWrapper({
 }) {
   return (
     <AuthProvider>
-      <AdminLayout>{children}</AdminLayout>
+      <EventProvider>
+        <EventPicker />
+        <AdminLoadingGate>
+          <AdminLayout>{children}</AdminLayout>
+        </AdminLoadingGate>
+      </EventProvider>
     </AuthProvider>
   )
 }
