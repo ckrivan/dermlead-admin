@@ -139,13 +139,13 @@ export default function AttendeesPage() {
           table: 'attendees',
           filter: `event_id=eq.${selectedEventId}`,
         },
-        (payload) => {
+        (payload: { eventType: string }) => {
           console.log('Attendee change detected:', payload.eventType)
           // Refetch to get updated data with groups
           refetchAttendees()
         }
       )
-      .subscribe((status) => {
+      .subscribe((status: string) => {
         console.log(`Real-time subscription status for ${channelName}:`, status)
       })
 

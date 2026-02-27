@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
 import { getEvents } from '@/lib/api/events'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Event } from '@/types/database'
@@ -41,10 +41,13 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const [selectedEvent, setSelectedEventState] = useState<Event | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [showPicker, setShowPicker] = useState(false)
+  const hasLoaded = useRef(false)
 
   useEffect(() => {
     // Wait for auth session before fetching — prevents race condition on mobile Safari
-    if (authLoading) return
+    // hasLoaded guard prevents duplicate fetches if authLoading toggles multiple times
+    if (authLoading || hasLoaded.current) return
+    hasLoaded.current = true
 
     let cancelled = false
 

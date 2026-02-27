@@ -67,12 +67,12 @@ export function useRealtimeAttendees(eventId: string | null): UseRealtimeAttende
           table: 'attendees',
           filter: `event_id=eq.${eventId}`,
         },
-        (payload) => {
+        (payload: { new: Record<string, unknown> }) => {
           console.log('Attendee INSERT:', payload.new)
           setAttendees((prev) => {
             // Check if already exists (avoid duplicates)
             if (prev.some((a) => a.id === payload.new.id)) return prev
-            return [...prev, payload.new as Attendee].sort((a, b) =>
+            return [...prev, payload.new as unknown as Attendee].sort((a, b) =>
               a.first_name.localeCompare(b.first_name)
             )
           })
@@ -86,10 +86,10 @@ export function useRealtimeAttendees(eventId: string | null): UseRealtimeAttende
           table: 'attendees',
           filter: `event_id=eq.${eventId}`,
         },
-        (payload) => {
+        (payload: { new: Record<string, unknown> }) => {
           console.log('Attendee UPDATE:', payload.new)
           setAttendees((prev) =>
-            prev.map((a) => (a.id === payload.new.id ? (payload.new as Attendee) : a))
+            prev.map((a) => (a.id === payload.new.id ? (payload.new as unknown as Attendee) : a))
           )
         }
       )
@@ -101,12 +101,12 @@ export function useRealtimeAttendees(eventId: string | null): UseRealtimeAttende
           table: 'attendees',
           filter: `event_id=eq.${eventId}`,
         },
-        (payload) => {
+        (payload: { old: Record<string, unknown> }) => {
           console.log('Attendee DELETE:', payload.old)
           setAttendees((prev) => prev.filter((a) => a.id !== payload.old.id))
         }
       )
-      .subscribe((status) => {
+      .subscribe((status: string) => {
         console.log(`Realtime subscription status for ${channelName}:`, status)
       })
 

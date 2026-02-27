@@ -21,7 +21,7 @@ export async function searchAttendeeRoster(query: string): Promise<Attendee[]> {
 
   // Deduplicate by email, keeping the most recent record
   const seen = new Set<string>()
-  return (data || []).filter((a) => {
+  return (data || []).filter((a: Attendee) => {
     if (seen.has(a.email)) return false
     seen.add(a.email)
     return true
@@ -75,7 +75,7 @@ export async function getAttendeesWithGroups(eventId: string): Promise<AttendeeW
   }
 
   // Get all group memberships
-  const attendeeIds = attendees.map((a) => a.id)
+  const attendeeIds = attendees.map((a: Attendee) => a.id)
   const { data: memberships, error: membershipsError } = await supabase
     .from('attendee_group_members')
     .select('*')
@@ -87,11 +87,11 @@ export async function getAttendeesWithGroups(eventId: string): Promise<AttendeeW
 
   // Create a map of group_id to group
   const groupMap = new Map<string, AttendeeGroup>()
-  ;(groups || []).forEach((g) => groupMap.set(g.id, g))
+  ;(groups || []).forEach((g: AttendeeGroup) => groupMap.set(g.id, g))
 
   // Create a map of attendee_id to groups
   const attendeeGroups = new Map<string, AttendeeGroup[]>()
-  ;(memberships || []).forEach((m) => {
+  ;(memberships || []).forEach((m: AttendeeGroupMember) => {
     const group = groupMap.get(m.group_id)
     if (group) {
       if (!attendeeGroups.has(m.attendee_id)) {
@@ -101,7 +101,7 @@ export async function getAttendeesWithGroups(eventId: string): Promise<AttendeeW
     }
   })
 
-  return attendees.map((attendee) => ({
+  return (attendees as Attendee[]).map((attendee) => ({
     ...attendee,
     full_name: `${attendee.first_name} ${attendee.last_name}`.trim(),
     groups: attendeeGroups.get(attendee.id) || [],
@@ -129,7 +129,7 @@ export async function getAttendee(id: string): Promise<AttendeeWithGroups | null
     .eq('attendee_id', id)
 
   const groups = (memberships || [])
-    .map((m) => m.attendee_groups as unknown as AttendeeGroup)
+    .map((m: { attendee_groups: unknown }) => m.attendee_groups as unknown as AttendeeGroup)
     .filter(Boolean)
 
   return {

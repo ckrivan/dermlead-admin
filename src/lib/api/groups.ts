@@ -183,7 +183,7 @@ export async function getEntityGroups(
     return []
   }
 
-  const groupIds = (memberLinks || []).map((m) => m.group_id)
+  const groupIds = (memberLinks || []).map((m: { group_id: string }) => m.group_id)
   if (groupIds.length === 0) return []
 
   // Then get the actual group details

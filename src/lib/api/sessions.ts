@@ -53,7 +53,7 @@ export async function getSessionsWithSpeakers(eventId: string): Promise<SessionW
   }
 
   // Get all session speakers in one query
-  const sessionIds = sessions.map((s) => s.id)
+  const sessionIds = (sessions as Session[]).map((s) => s.id)
   const { data: sessionSpeakers, error: speakersError } = await supabase
     .from('session_speakers')
     .select(`
@@ -71,7 +71,7 @@ export async function getSessionsWithSpeakers(eventId: string): Promise<SessionW
 
   // Group speakers by session
   const speakersBySession = new Map<string, SessionWithSpeakers['speakers']>()
-  ;(sessionSpeakers || []).forEach((ss) => {
+  ;(sessionSpeakers || []).forEach((ss: { session_id: string; speakers: unknown; role: string; display_order: number }) => {
     const sessionId = ss.session_id
     if (!speakersBySession.has(sessionId)) {
       speakersBySession.set(sessionId, [])
@@ -83,7 +83,7 @@ export async function getSessionsWithSpeakers(eventId: string): Promise<SessionW
     })
   })
 
-  return sessions.map((session) => ({
+  return (sessions as Session[]).map((session) => ({
     ...session,
     speakers: speakersBySession.get(session.id) || [],
   }))
@@ -118,7 +118,7 @@ export async function getSession(id: string): Promise<SessionWithSpeakers | null
     console.error('Error fetching session speakers:', speakersError)
   }
 
-  const speakers = (sessionSpeakers || []).map((ss) => ({
+  const speakers = (sessionSpeakers || []).map((ss: { speakers: unknown; role: string; display_order: number }) => ({
     speaker: ss.speakers as unknown as Speaker,
     role: ss.role,
     display_order: ss.display_order,
@@ -265,7 +265,7 @@ export async function duplicateSession(id: string): Promise<Session> {
 
   // Copy speaker assignments
   if (speakerAssignments && speakerAssignments.length > 0) {
-    const newAssignments = speakerAssignments.map((sa) => ({
+    const newAssignments = speakerAssignments.map((sa: { speaker_id: string; role: string; display_order: number }) => ({
       session_id: duplicate.id,
       speaker_id: sa.speaker_id,
       role: sa.role,
