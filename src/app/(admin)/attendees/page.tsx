@@ -6,6 +6,7 @@ import { Card, CardBody, Button, Input } from '@/components/ui'
 import {
   getAttendeesWithGroups,
   createAttendee,
+  searchAttendeeRoster,
   deleteAttendee,
   checkInAttendee,
   undoCheckIn,
@@ -67,6 +68,12 @@ export default function AttendeesPage() {
     institution: '',
     badge_type: 'attendee',
   })
+
+  // Roster search state
+  const [rosterQuery, setRosterQuery] = useState('')
+  const [rosterResults, setRosterResults] = useState<AttendeeWithGroups[]>([])
+  const [rosterSearching, setRosterSearching] = useState(false)
+  const rosterDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('')
@@ -300,6 +307,40 @@ export default function AttendeesPage() {
     }
   }
 
+  const handleRosterSearch = (query: string) => {
+    setRosterQuery(query)
+    if (rosterDebounceRef.current) clearTimeout(rosterDebounceRef.current)
+    if (!query.trim()) {
+      setRosterResults([])
+      return
+    }
+    rosterDebounceRef.current = setTimeout(async () => {
+      setRosterSearching(true)
+      try {
+        const results = await searchAttendeeRoster(query)
+        setRosterResults(results as unknown as AttendeeWithGroups[])
+      } catch {
+        setRosterResults([])
+      } finally {
+        setRosterSearching(false)
+      }
+    }, 300)
+  }
+
+  const handleRosterSelect = (person: AttendeeWithGroups) => {
+    setAddForm({
+      first_name: person.first_name,
+      last_name: person.last_name,
+      email: person.email,
+      phone: person.phone || '',
+      specialty: person.specialty || '',
+      institution: person.institution || '',
+      badge_type: person.badge_type || 'attendee',
+    })
+    setRosterQuery('')
+    setRosterResults([])
+  }
+
   const handleAddAttendee = async () => {
     if (!selectedEventId || !addForm.first_name.trim() || !addForm.last_name.trim() || !addForm.email.trim()) return
     setAddSubmitting(true)
@@ -328,6 +369,8 @@ export default function AttendeesPage() {
       })
       setShowAddModal(false)
       setAddForm({ first_name: '', last_name: '', email: '', phone: '', specialty: '', institution: '', badge_type: 'attendee' })
+      setRosterQuery('')
+      setRosterResults([])
       await refetchAttendees()
     } catch (error) {
       console.error('Error adding attendee:', error)
@@ -755,13 +798,58 @@ export default function AttendeesPage() {
             <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
               <h3 className="font-semibold text-[var(--foreground)]">Add Attendee</h3>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => { setShowAddModal(false); setRosterQuery(''); setRosterResults([]) }}
                 className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)]"
               >
                 <X size={20} />
               </button>
             </div>
             <div className="p-4 space-y-3">
+              {/* Roster search */}
+              <div className="relative">
+                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Search existing attendees</label>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--foreground-subtle)]" />
+                  <input
+                    type="text"
+                    value={rosterQuery}
+                    onChange={(e) => handleRosterSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                    placeholder="Name or email..."
+                  />
+                  {rosterSearching && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="animate-spin h-3 w-3 rounded-full border-b border-[var(--accent-primary)]" />
+                    </div>
+                  )}
+                </div>
+                {rosterResults.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {rosterResults.map((person) => (
+                      <button
+                        key={person.id}
+                        type="button"
+                        onClick={() => handleRosterSelect(person)}
+                        className="w-full text-left px-3 py-2 hover:bg-[var(--background-tertiary)] transition-colors"
+                      >
+                        <p className="text-sm font-medium text-[var(--foreground)]">
+                          {person.first_name} {person.last_name}
+                        </p>
+                        <p className="text-xs text-[var(--foreground-muted)]">
+                          {person.email}{person.specialty ? ` · ${person.specialty}` : ''}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-[var(--foreground-subtle)]">
+                <div className="flex-1 h-px bg-[var(--card-border)]" />
+                or fill in manually
+                <div className="flex-1 h-px bg-[var(--card-border)]" />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">First Name *</label>
@@ -840,7 +928,7 @@ export default function AttendeesPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-[var(--card-border)]">
-              <Button variant="ghost" onClick={() => setShowAddModal(false)}>
+              <Button variant="ghost" onClick={() => { setShowAddModal(false); setRosterQuery(''); setRosterResults([]) }}>
                 Cancel
               </Button>
               <Button

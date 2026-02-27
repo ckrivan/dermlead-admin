@@ -6,6 +6,28 @@ export interface AttendeeWithGroups extends Attendee {
   groups: AttendeeGroup[]
 }
 
+export async function searchAttendeeRoster(query: string): Promise<Attendee[]> {
+  if (!query.trim()) return []
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('attendees')
+    .select('*')
+    .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%`)
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  if (error) throw error
+
+  // Deduplicate by email, keeping the most recent record
+  const seen = new Set<string>()
+  return (data || []).filter((a) => {
+    if (seen.has(a.email)) return false
+    seen.add(a.email)
+    return true
+  })
+}
+
 export async function getAttendees(eventId: string): Promise<Attendee[]> {
   const supabase = createClient()
 
