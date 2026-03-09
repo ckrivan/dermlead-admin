@@ -90,7 +90,7 @@ export default function IndustryPartnersPage() {
   const [sponsorFormData, setSponsorFormData] = useState({
     company_name: '',
     description: '',
-    tier: 'partner' as Sponsor['tier'],
+    tier: 'bronze' as Sponsor['tier'],
     website_url: '',
     contact_name: '',
     contact_email: '',
@@ -289,7 +289,7 @@ export default function IndustryPartnersPage() {
       setSponsorFormData({
         company_name: '',
         description: '',
-        tier: 'partner',
+        tier: 'bronze',
         website_url: '',
         contact_name: '',
         contact_email: '',
@@ -354,7 +354,7 @@ export default function IndustryPartnersPage() {
   }
 
   const getTierInfo = (tier: string) => {
-    return SPONSOR_TIERS.find((t) => t.value === tier) || SPONSOR_TIERS[6]
+    return SPONSOR_TIERS.find((t) => t.value === tier) || SPONSOR_TIERS[2]
   }
 
   // --- Import handlers ---

@@ -12,13 +12,23 @@ export interface Profile {
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
-  role: "admin" | "rep";
+  role: "admin" | "rep" | "attendee" | "auditor";
   organization_id: string | null;
   is_active: boolean;
-  invited_by: string | null;
-  invited_at: string | null;
-  last_login_at: string | null;
+  credentials: string | null;
+  bio: string | null;
+  specialty: string | null;
+  institution: string | null;
+  title: string | null;
+  is_speaker: boolean;
+  city: string | null;
+  state: string | null;
+  linkedin_url: string | null;
+  twitter_url: string | null;
+  contact_shared: boolean;
+  personal_email: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Event {
@@ -117,16 +127,21 @@ export interface Attendee {
 export interface Lead {
   id: string;
   organization_id: string;
-  user_id: string;
   event_id: string | null;
-  full_name: string;
-  email: string | null;
-  company: string | null;
-  title: string | null;
+  captured_by: string;
+  first_name: string;
+  last_name: string;
+  work_email: string;
+  personal_email: string | null;
   phone: string | null;
+  specialty: string;
+  institution: string | null;
+  years_in_practice: string | null;
+  interest_areas: string[] | null;
   notes: string | null;
-  interest_level: string;
-  topics_of_interest: string[] | null;
+  lead_score: number;
+  photo_url: string | null;
+  synced_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -198,7 +213,7 @@ export interface Sponsor {
   event_id: string;
   company_name: string;
   description: string | null;
-  tier: "title_sponsor" | "presidents_circle" | "platinum" | "gold" | "silver" | "bronze" | "partner";
+  tier: "title_sponsor" | "presidents_circle" | "bronze";
   logo_url: string | null;
   banner_url: string | null;
   website_url: string | null;

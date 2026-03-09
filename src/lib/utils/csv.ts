@@ -320,7 +320,7 @@ export function generateExhibitorTemplate(): string {
       'john@acmemedical.com',
       'Leading provider of dermatology equipment and supplies.',
       'https://acmemedical.com',
-      'gold',
+      'title_sponsor',
       'Medical Devices',
       'Sarah',
       'Johnson',
@@ -334,7 +334,7 @@ export function generateExhibitorTemplate(): string {
       'jane@dermtech.com',
       'Innovative skincare technology and diagnostic tools.',
       'https://dermtech.com',
-      'silver',
+      'bronze',
       'Technology',
       '',
       '',
@@ -367,7 +367,7 @@ export function generateSponsorTemplate(): string {
   const exampleRows = [
     [
       'Pfizer Dermatology',
-      'Platinum',
+      'Title Sponsor',
       'Main Hall',
       'Global pharmaceutical leader in dermatology treatments.',
       'Sarah',
@@ -380,7 +380,7 @@ export function generateSponsorTemplate(): string {
     ],
     [
       'SkinCare Research Inc',
-      'Gold',
+      "President's Circle",
       'C102',
       'Advancing dermatological research and innovation.',
       'Michael',
@@ -393,7 +393,7 @@ export function generateSponsorTemplate(): string {
     ],
     [
       'DermConnect',
-      'Silver',
+      'Bronze',
       '',
       'Connecting dermatology professionals worldwide.',
       'Emily',
@@ -616,7 +616,7 @@ export function normalizeSponsorRow(row: SponsorCSVRow): {
   const lastName = row['*contact_last_name'] || row.contact_last_name || ''
   const email = row['*email'] || row.email || row.contact_email || ''
   const website = row['*website'] || row.website || row.website_url || ''
-  const tier = row['*tier'] || row.tier || 'partner'
+  const tier = row['*tier'] || row.tier || 'bronze'
 
   let contactName = row.contact_name || ''
   if (!contactName && (firstName || lastName)) {
@@ -625,14 +625,14 @@ export function normalizeSponsorRow(row: SponsorCSVRow): {
 
   // Normalize tier to lowercase
   const normalizedTier = tier.toLowerCase().trim()
-  const validTiers = ['platinum', 'gold', 'silver', 'bronze', 'partner']
-  const finalTier = validTiers.includes(normalizedTier) ? normalizedTier : 'partner'
+  const validTiers = ['title_sponsor', 'presidents_circle', 'bronze']
+  const finalTier = validTiers.includes(normalizedTier) ? normalizedTier : 'bronze'
 
-  // is_featured: explicit CSV value takes precedence, otherwise auto-set for platinum/gold
+  // is_featured: explicit CSV value takes precedence, otherwise auto-set for title_sponsor/presidents_circle
   const featuredRaw = (row.is_featured || row.featured || (row as Record<string, string | undefined>)['featured_(yes/no)'] || '').toLowerCase().trim()
   const isFeatured = featuredRaw
     ? featuredRaw === 'yes' || featuredRaw === 'true' || featuredRaw === '1'
-    : finalTier === 'platinum' || finalTier === 'gold'
+    : finalTier === 'title_sponsor' || finalTier === 'presidents_circle'
 
   return {
     company_name: companyName.trim(),
