@@ -3,10 +3,11 @@ import type { Sponsor } from '@/types/database'
 import { normalizeSponsorRow, SponsorCSVRow } from '@/lib/utils/csv'
 
 export const SPONSOR_TIERS = [
-  { value: 'title_sponsor' as const, label: 'Title Sponsor', color: '#1a1a2e' },
-  { value: 'presidents_circle' as const, label: "President's Circle", color: '#8b0000' },
-  { value: 'bronze' as const, label: 'Bronze', color: '#cd7f32' },
-] satisfies readonly { value: Sponsor['tier']; label: string; color: string }[]
+  { value: 'title_sponsor', label: 'Title Sponsor', color: '#1a1a2e' },
+  { value: 'presidents_circle', label: "President's Circle", color: '#8b0000' },
+  { value: 'bronze', label: 'Bronze', color: '#cd7f32' },
+  { value: 'exhibitor', label: 'Exhibitor', color: '#6b7280' },
+] as const
 
 export async function getSponsors(eventId: string): Promise<Sponsor[]> {
   const supabase = createClient()

@@ -162,7 +162,7 @@ export async function inviteUser(inviteData: InviteUserData): Promise<{ success:
 /**
  * Change a user's role
  */
-export async function changeUserRole(userId: string, newRole: 'admin' | 'rep'): Promise<void> {
+export async function changeUserRole(userId: string, newRole: 'admin' | 'rep' | 'attendee' | 'auditor'): Promise<void> {
   const supabase = createClient()
 
   const { error } = await supabase

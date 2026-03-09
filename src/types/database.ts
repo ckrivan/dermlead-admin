@@ -224,7 +224,7 @@ export interface Sponsor {
   event_id: string;
   company_name: string;
   description: string | null;
-  tier: "title_sponsor" | "presidents_circle" | "bronze";
+  tier: "title_sponsor" | "presidents_circle" | "bronze" | "exhibitor" | "exhibitor";
   logo_url: string | null;
   banner_url: string | null;
   website_url?: string | null;

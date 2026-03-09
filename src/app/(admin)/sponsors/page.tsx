@@ -264,7 +264,7 @@ export default function SponsorsPage() {
   }
 
   const getTierInfo = (tier: string) => {
-    return SPONSOR_TIERS.find((t) => t.value === tier) || SPONSOR_TIERS[2]
+    return SPONSOR_TIERS.find((t) => t.value === tier) || SPONSOR_TIERS[3]
   }
 
   return (

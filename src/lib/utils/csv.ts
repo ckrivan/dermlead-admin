@@ -320,7 +320,7 @@ export function generateExhibitorTemplate(): string {
       'john@acmemedical.com',
       'Leading provider of dermatology equipment and supplies.',
       'https://acmemedical.com',
-      'title_sponsor',
+      'platinum',
       'Medical Devices',
       'Sarah',
       'Johnson',
@@ -367,7 +367,7 @@ export function generateSponsorTemplate(): string {
   const exampleRows = [
     [
       'Pfizer Dermatology',
-      'Title Sponsor',
+      'Platinum',
       'Main Hall',
       'Global pharmaceutical leader in dermatology treatments.',
       'Sarah',
@@ -380,7 +380,7 @@ export function generateSponsorTemplate(): string {
     ],
     [
       'SkinCare Research Inc',
-      "President's Circle",
+      'Gold',
       'C102',
       'Advancing dermatological research and innovation.',
       'Michael',
@@ -625,7 +625,7 @@ export function normalizeSponsorRow(row: SponsorCSVRow): {
 
   // Normalize tier to lowercase
   const normalizedTier = tier.toLowerCase().trim()
-  const validTiers = ['title_sponsor', 'presidents_circle', 'bronze']
+  const validTiers = ['title_sponsor', 'presidents_circle', 'bronze', 'exhibitor']
   const finalTier = validTiers.includes(normalizedTier) ? normalizedTier : 'bronze'
 
   // is_featured: explicit CSV value takes precedence, otherwise auto-set for title_sponsor/presidents_circle
