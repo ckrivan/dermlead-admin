@@ -47,6 +47,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { QRCodeSVG } from "qrcode.react";
 
 export default function AttendeesPage() {
   const { selectedEvent } = useEvent();
@@ -166,6 +167,9 @@ export default function AttendeesPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [checkingIn, setCheckingIn] = useState<string | null>(null);
   const [openMoreMenuRect, setOpenMoreMenuRect] = useState<DOMRect | null>(
+    null,
+  );
+  const [qrAttendee, setQrAttendee] = useState<AttendeeWithGroups | null>(
     null,
   );
 
@@ -1074,6 +1078,13 @@ export default function AttendeesPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                icon={<QrCode size={14} />}
+                                onClick={() => setQrAttendee(attendee)}
+                                title="View QR Code"
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 icon={
                                   attendee.checked_in_at ? (
                                     <XCircle size={14} />
@@ -1686,6 +1697,96 @@ export default function AttendeesPage() {
           </>,
           document.body,
         )}
+
+      {/* QR Code Modal */}
+      {qrAttendee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-sm mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
+              <h3 className="font-semibold text-[var(--foreground)]">
+                Badge QR Code
+              </h3>
+              <button
+                onClick={() => setQrAttendee(null)}
+                className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)]"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 flex flex-col items-center gap-4">
+              <div className="qr-modal-print bg-white p-4 rounded-lg">
+                <QRCodeSVG
+                  value={JSON.stringify(
+                    qrAttendee.qr_data && Object.keys(qrAttendee.qr_data).length > 0
+                      ? qrAttendee.qr_data
+                      : {
+                          firstName: qrAttendee.first_name,
+                          lastName: qrAttendee.last_name,
+                          email: qrAttendee.email,
+                        },
+                  )}
+                  size={200}
+                  level="M"
+                />
+              </div>
+
+              <div className="text-center">
+                <p className="font-semibold text-lg text-[var(--foreground)]">
+                  {qrAttendee.first_name} {qrAttendee.last_name}
+                  {qrAttendee.credentials && (
+                    <span className="text-[var(--foreground-muted)] font-normal">
+                      , {qrAttendee.credentials}
+                    </span>
+                  )}
+                </p>
+                {qrAttendee.institution && (
+                  <p className="text-sm text-[var(--foreground-muted)]">
+                    {qrAttendee.institution}
+                  </p>
+                )}
+                {qrAttendee.badge_type && (
+                  <span
+                    className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${getBadgeTypeColor(qrAttendee.badge_type)}`}
+                  >
+                    {qrAttendee.badge_type}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 p-4 border-t border-[var(--card-border)]">
+              <Button variant="ghost" onClick={() => setQrAttendee(null)}>
+                Close
+              </Button>
+              <Button
+                icon={<Download size={16} />}
+                onClick={() => {
+                  const svg = document.querySelector(".qr-modal-print svg");
+                  if (!svg) return;
+                  const svgData = new XMLSerializer().serializeToString(svg);
+                  const canvas = document.createElement("canvas");
+                  canvas.width = 400;
+                  canvas.height = 400;
+                  const ctx = canvas.getContext("2d");
+                  const img = new Image();
+                  img.onload = () => {
+                    ctx?.drawImage(img, 0, 0, 400, 400);
+                    const link = document.createElement("a");
+                    link.download = `${qrAttendee.first_name}-${qrAttendee.last_name}-qr.png`;
+                    link.href = canvas.toDataURL("image/png");
+                    link.click();
+                  };
+                  img.src =
+                    "data:image/svg+xml;base64," + btoa(svgData);
+                }}
+              >
+                Download
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

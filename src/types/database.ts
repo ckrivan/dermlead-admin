@@ -197,7 +197,7 @@ export interface Sponsor {
   event_id: string;
   company_name: string;
   description: string | null;
-  tier: "platinum" | "gold" | "silver" | "bronze" | "partner";
+  tier: "presidents_circle" | "platinum" | "gold" | "silver" | "bronze" | "partner";
   logo_url: string | null;
   banner_url: string | null;
   website_url: string | null;

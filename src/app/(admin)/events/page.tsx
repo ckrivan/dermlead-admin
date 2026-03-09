@@ -230,8 +230,8 @@ export default function EventsPage() {
                     <div className="flex items-center gap-2">
                       <Calendar size={14} />
                       <span>
-                        {format(new Date(event.start_date), 'MMM d')} -{' '}
-                        {format(new Date(event.end_date), 'MMM d, yyyy')}
+                        {format(new Date(event.start_date + 'T00:00:00'), 'MMM d')} -{' '}
+                        {format(new Date(event.end_date + 'T00:00:00'), 'MMM d, yyyy')}
                       </span>
                     </div>
                     {event.location && (
@@ -332,8 +332,8 @@ export default function EventsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-[var(--foreground-muted)]">
-                        {format(new Date(event.start_date), 'MMM d')} -{' '}
-                        {format(new Date(event.end_date), 'MMM d, yyyy')}
+                        {format(new Date(event.start_date + 'T00:00:00'), 'MMM d')} -{' '}
+                        {format(new Date(event.end_date + 'T00:00:00'), 'MMM d, yyyy')}
                       </td>
                       <td className="px-4 py-3 text-sm text-[var(--foreground-muted)]">
                         {event.location || '-'}

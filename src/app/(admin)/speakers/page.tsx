@@ -190,8 +190,8 @@ export default function SpeakersPage() {
   return (
     <>
       <Header
-        title="Speakers"
-        subtitle="Manage speakers for your events"
+        title="Faculty"
+        subtitle="Manage faculty for your events"
       />
 
       <div className="p-6 space-y-6">

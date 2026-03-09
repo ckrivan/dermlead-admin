@@ -27,7 +27,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Events', href: '/events', icon: Calendar },
   { name: 'Attendees', href: '/attendees', icon: UserCheck },
-  { name: 'Speakers', href: '/speakers', icon: Users },
+  { name: 'Faculty', href: '/speakers', icon: Users },
   { name: 'Sessions', href: '/sessions', icon: Presentation },
   { name: 'Groups', href: '/groups', icon: UsersRound },
   { name: 'Exhibitors', href: '/exhibitors', icon: Building2 },

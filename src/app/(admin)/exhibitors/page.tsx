@@ -9,6 +9,7 @@ import {
   updateExhibitor,
   deleteExhibitor,
   bulkCreateExhibitors,
+  uploadExhibitorLogo,
   EXHIBITOR_CATEGORIES,
 } from '@/lib/api/exhibitors'
 import { getEvents } from '@/lib/api/events'
@@ -59,6 +60,9 @@ export default function ExhibitorsPage() {
   } | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -141,6 +145,7 @@ export default function ExhibitorsPage() {
         contact_phone: exhibitor.contact_phone || '',
         category: exhibitor.category || '',
       })
+      setLogoPreview(exhibitor.logo_url)
     } else {
       setEditingExhibitor(null)
       setFormData({
@@ -153,6 +158,7 @@ export default function ExhibitorsPage() {
         contact_phone: '',
         category: '',
       })
+      setLogoPreview(null)
     }
     setShowFormModal(true)
   }
@@ -489,6 +495,68 @@ export default function ExhibitorsPage() {
             </div>
 
             <div className="p-4 space-y-4">
+              {/* Logo Upload */}
+              <div>
+                <label className="block text-sm text-[var(--foreground-muted)] mb-2">
+                  Company Logo
+                </label>
+                <div className="flex items-center gap-4">
+                  {logoPreview ? (
+                    <img
+                      src={logoPreview}
+                      alt="Logo"
+                      className="w-16 h-16 rounded-lg object-contain bg-[var(--background-secondary)]"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-[var(--background-tertiary)] flex items-center justify-center">
+                      <Building2 className="h-8 w-8 text-[var(--foreground-subtle)]" />
+                    </div>
+                  )}
+                  <div>
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        if (editingExhibitor) {
+                          setUploadingLogo(true)
+                          try {
+                            const url = await uploadExhibitorLogo(editingExhibitor.id, file)
+                            setLogoPreview(url)
+                          } catch (err) {
+                            console.error('Error uploading logo:', err)
+                          } finally {
+                            setUploadingLogo(false)
+                          }
+                        } else {
+                          const reader = new FileReader()
+                          reader.onload = (ev) => setLogoPreview(ev.target?.result as string)
+                          reader.readAsDataURL(file)
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      icon={<Upload size={14} />}
+                      onClick={() => logoInputRef.current?.click()}
+                      disabled={uploadingLogo}
+                    >
+                      {uploadingLogo ? 'Uploading...' : logoPreview ? 'Change Logo' : 'Upload Logo'}
+                    </Button>
+                    {!editingExhibitor && logoPreview && (
+                      <p className="text-xs text-[var(--foreground-muted)] mt-1">
+                        Logo will be uploaded after saving
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm text-[var(--foreground-muted)] mb-1">
                   Company Name *

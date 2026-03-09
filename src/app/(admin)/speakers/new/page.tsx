@@ -320,7 +320,7 @@ function LoadingFallback() {
 export default function NewSpeakerPage() {
   return (
     <>
-      <Header title="Add Speaker" subtitle="Create a new speaker profile" />
+      <Header title="Add Faculty" subtitle="Create a new faculty profile" />
       <Suspense fallback={<LoadingFallback />}>
         <NewSpeakerForm />
       </Suspense>

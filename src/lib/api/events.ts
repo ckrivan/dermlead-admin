@@ -193,8 +193,8 @@ export function generateInviteCode(): string {
 
 export function getEventStatus(event: Event): "upcoming" | "active" | "past" {
   const now = new Date();
-  const startDate = new Date(event.start_date);
-  const endDate = new Date(event.end_date);
+  const startDate = new Date(event.start_date + "T00:00:00");
+  const endDate = new Date(event.end_date + "T23:59:59");
 
   if (now < startDate) return "upcoming";
   if (now > endDate) return "past";
