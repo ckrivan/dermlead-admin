@@ -137,6 +137,11 @@ export function Sidebar() {
           <LogOut size={20} />
           {!collapsed && <span className="font-medium">Sign Out</span>}
         </button>
+        {!collapsed && (
+          <p className="px-3 mt-3 text-[10px] text-white/40 font-mono">
+            v{process.env.NEXT_PUBLIC_APP_VERSION} · build {process.env.NEXT_PUBLIC_BUILD_ID}
+          </p>
+        )}
       </div>
     </aside>
   )
