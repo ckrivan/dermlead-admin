@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Event } from '@/types/database'
 
 export interface BrandingSettings {
-  brand_color: string | null
+  primary_color: string | null
   logo_url: string | null
   banner_url: string | null
   show_logo_on_banner: boolean
@@ -14,7 +14,7 @@ export async function getBrandingSettings(eventId: string): Promise<BrandingSett
 
   const { data, error } = await supabase
     .from('events')
-    .select('brand_color, logo_url, banner_url, show_logo_on_banner, custom_url_slug')
+    .select('primary_color, logo_url, banner_url, show_logo_on_banner, custom_url_slug')
     .eq('id', eventId)
     .single()
 
@@ -24,7 +24,7 @@ export async function getBrandingSettings(eventId: string): Promise<BrandingSett
   }
 
   return {
-    brand_color: data.brand_color,
+    primary_color: data.primary_color,
     logo_url: data.logo_url,
     banner_url: data.banner_url,
     show_logo_on_banner: data.show_logo_on_banner ?? false,

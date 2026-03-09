@@ -27,6 +27,9 @@ export interface Profile {
   twitter_url: string | null;
   contact_shared: boolean;
   personal_email: string | null;
+  invited_by?: string | null;
+  invited_at?: string | null;
+  last_login_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,16 +38,20 @@ export interface Event {
   id: string;
   organization_id: string;
   name: string;
-  slug: string;
+  slug?: string;
   location: string | null;
   start_date: string;
   end_date: string;
   invite_code: string | null;
   description: string | null;
   banner_url: string | null;
-  tracks: string[] | null;
+  interest_options?: string[] | null;
+  website_url?: string | null;
+  venue_name?: string | null;
+  venue_address?: string | null;
   // Branding fields
-  brand_color: string | null;
+  brand_color?: string | null;
+  primary_color?: string | null;
   logo_url: string | null;
   show_logo_on_banner: boolean | null;
   custom_url_slug: string | null;
@@ -63,7 +70,7 @@ export interface Speaker {
   photo_url: string | null;
   email: string | null;
   linkedin_url: string | null;
-  website_url: string | null;
+  website_url?: string | null;
   role: string | null;
   created_at: string;
   updated_at: string;
@@ -79,8 +86,12 @@ export interface Session {
   start_time: string;
   end_time: string;
   location: string | null;
+  location_details?: string | null;
   track: string | null;
   objectives: string[] | null;
+  capacity?: number | null;
+  requires_registration?: boolean;
+  is_highlighted?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -197,7 +208,7 @@ export interface Exhibitor {
   booth_number: string | null;
   logo_url: string | null;
   banner_url: string | null;
-  website_url: string | null;
+  website_url?: string | null;
   contact_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
@@ -216,7 +227,7 @@ export interface Sponsor {
   tier: "title_sponsor" | "presidents_circle" | "bronze";
   logo_url: string | null;
   banner_url: string | null;
-  website_url: string | null;
+  website_url?: string | null;
   contact_name: string | null;
   contact_email: string | null;
   booth_number: string | null;

@@ -122,7 +122,7 @@ export function UserTable({ users, currentUserId, onEditUser, onRefresh }: UserT
                 )}
               </td>
               <td className="py-3 px-4 text-sm text-[var(--foreground-muted)]">
-                {formatDate(user.last_login_at)}
+                {formatDate(user.last_login_at ?? null)}
               </td>
               <td className="py-3 px-4 text-right">
                 <div className="relative inline-block">

@@ -8,13 +8,13 @@ export interface UserWithEmail extends Profile {
 export interface InviteUserData {
   email: string
   full_name: string
-  role: 'admin' | 'rep'
+  role: 'admin' | 'rep' | 'attendee' | 'auditor'
   organization_id: string
 }
 
 export interface UpdateUserData {
   full_name?: string
-  role?: 'admin' | 'rep'
+  role?: 'admin' | 'rep' | 'attendee' | 'auditor'
   is_active?: boolean
 }
 
@@ -132,9 +132,6 @@ export async function inviteUser(inviteData: InviteUserData): Promise<{ success:
     return { success: false, error: 'A user with this email already exists' }
   }
 
-  // Get current user for invited_by
-  const { data: { user } } = await supabase.auth.getUser()
-
   // For a proper invite flow, we'd use admin.inviteUserByEmail
   // which requires service role key. For now, we create a pending profile
   // that will be linked when the user signs up
@@ -152,8 +149,6 @@ export async function inviteUser(inviteData: InviteUserData): Promise<{ success:
       role: inviteData.role,
       organization_id: inviteData.organization_id,
       is_active: false, // Pending activation
-      invited_by: user?.id || null,
-      invited_at: new Date().toISOString(),
     })
 
   if (error) {

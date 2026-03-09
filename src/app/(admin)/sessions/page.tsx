@@ -161,12 +161,11 @@ export default function SessionsPage() {
       presentation: 'bg-blue-500 text-white',
       workshop: 'bg-green-500 text-white',
       panel: 'bg-orange-500 text-white',
-      symposium: 'bg-pink-500 text-white',
       breakout: 'bg-cyan-500 text-white',
       networking: 'bg-yellow-500 text-white',
       meal: 'bg-amber-500 text-white',
       break: 'bg-gray-500 text-white',
-      registration: 'bg-indigo-500 text-white',
+      exhibition: 'bg-indigo-500 text-white',
     }
     return colors[type] || 'bg-gray-500 text-white'
   }

@@ -26,7 +26,7 @@ export function EditUserModal({
   useEffect(() => {
     if (user) {
       setFullName(user.full_name || '')
-      setRole(user.role)
+      setRole(user.role === 'admin' ? 'admin' : 'rep')
     }
   }, [user])
 

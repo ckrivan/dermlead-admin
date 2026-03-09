@@ -1,0 +1,3 @@
+[   34605ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://xxzenpjxsysqpimqtosi.supabase.co/rest/v1/events?id=eq.46c4c3e8-8f62-4759-a5e5-3ed724e7c594&select=*:0
+[   34605ms] [ERROR] Error updating event: {code: PGRST204, details: null, hint: null, message: Could not find the 'tracks' column of 'events' in the schema cache} @ https://dermlead-admin.vercel.app/_next/static/chunks/90d8484476d86a1c.js:0
+[   34606ms] [ERROR] Error updating event: {code: PGRST204, details: null, hint: null, message: Could not find the 'tracks' column of 'events' in the schema cache} @ https://dermlead-admin.vercel.app/_next/static/chunks/12f3db817c168a46.js:0

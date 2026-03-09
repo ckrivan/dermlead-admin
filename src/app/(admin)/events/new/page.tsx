@@ -25,7 +25,7 @@ export default function NewEventPage() {
     end_date: '',
     description: '',
     invite_code: '',
-    brand_color: '#3b82f6',
+    primary_color: '#3b82f6',
   })
 
   const [tracks, setTracks] = useState<string[]>([])
@@ -114,8 +114,11 @@ export default function NewEventPage() {
         description: formData.description || null,
         invite_code: formData.invite_code || null,
         banner_url: null,
-        tracks: tracks.length > 0 ? tracks : null,
-        brand_color: formData.brand_color,
+        interest_options: null,
+        website_url: null,
+        venue_name: null,
+        venue_address: null,
+        primary_color: formData.primary_color,
         logo_url: null,
         show_logo_on_banner: false,
         custom_url_slug: null,
@@ -243,8 +246,8 @@ export default function NewEventPage() {
 
                   <ColorPicker
                     label="Brand Color"
-                    value={formData.brand_color}
-                    onChange={(color) => setFormData((prev) => ({ ...prev, brand_color: color }))}
+                    value={formData.primary_color}
+                    onChange={(color) => setFormData((prev) => ({ ...prev, primary_color: color }))}
                   />
                 </CardBody>
               </Card>

@@ -48,7 +48,7 @@ export default function BrandingPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<BrandingSettings>({
-    brand_color: DEFAULT_BRAND_COLOR,
+    primary_color: DEFAULT_BRAND_COLOR,
     logo_url: null,
     banner_url: null,
     show_logo_on_banner: false,
@@ -92,7 +92,7 @@ export default function BrandingPage() {
           setSettings(data)
         } else {
           setSettings({
-            brand_color: DEFAULT_BRAND_COLOR,
+            primary_color: DEFAULT_BRAND_COLOR,
             logo_url: null,
             banner_url: null,
             show_logo_on_banner: false,
@@ -109,7 +109,7 @@ export default function BrandingPage() {
   }, [selectedEventId])
 
   const handleColorChange = async (color: string) => {
-    setSettings((prev) => ({ ...prev, brand_color: color }))
+    setSettings((prev) => ({ ...prev, primary_color: color }))
   }
 
   const handleSave = async () => {
@@ -118,7 +118,7 @@ export default function BrandingPage() {
     setSaving(true)
     try {
       await updateBrandingSettings(selectedEventId, {
-        brand_color: settings.brand_color,
+        primary_color: settings.primary_color,
         show_logo_on_banner: settings.show_logo_on_banner,
         custom_url_slug: settings.custom_url_slug,
       })
@@ -259,11 +259,11 @@ export default function BrandingPage() {
                         className="relative w-8 h-8 rounded-lg border-2 transition-all hover:scale-110"
                         style={{
                           backgroundColor: color,
-                          borderColor: settings.brand_color === color ? 'var(--foreground)' : 'transparent',
+                          borderColor: settings.primary_color === color ? 'var(--foreground)' : 'transparent',
                         }}
                         title={color}
                       >
-                        {settings.brand_color === color && (
+                        {settings.primary_color === color && (
                           <Check className="absolute inset-0 m-auto h-4 w-4 text-white" />
                         )}
                       </button>
@@ -274,13 +274,13 @@ export default function BrandingPage() {
                   <div className="flex items-center gap-3">
                     <input
                       type="color"
-                      value={settings.brand_color || DEFAULT_BRAND_COLOR}
+                      value={settings.primary_color || DEFAULT_BRAND_COLOR}
                       onChange={(e) => handleColorChange(e.target.value)}
                       className="w-12 h-10 rounded-lg cursor-pointer border border-[var(--border)]"
                     />
                     <input
                       type="text"
-                      value={settings.brand_color || DEFAULT_BRAND_COLOR}
+                      value={settings.primary_color || DEFAULT_BRAND_COLOR}
                       onChange={(e) => handleColorChange(e.target.value)}
                       placeholder="#3b82f6"
                       className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
@@ -498,7 +498,7 @@ export default function BrandingPage() {
                       {/* Status Bar */}
                       <div
                         className="h-6 flex items-center justify-between px-4 text-white text-xs"
-                        style={{ backgroundColor: settings.brand_color || DEFAULT_BRAND_COLOR }}
+                        style={{ backgroundColor: settings.primary_color || DEFAULT_BRAND_COLOR }}
                       >
                         <span>9:41</span>
                         <div className="flex gap-1">
@@ -510,7 +510,7 @@ export default function BrandingPage() {
                       {/* Header */}
                       <div
                         className="h-14 flex items-center justify-between px-4"
-                        style={{ backgroundColor: settings.brand_color || DEFAULT_BRAND_COLOR }}
+                        style={{ backgroundColor: settings.primary_color || DEFAULT_BRAND_COLOR }}
                       >
                         {settings.logo_url ? (
                           <img
@@ -572,7 +572,7 @@ export default function BrandingPage() {
                               <div
                                 className="w-6 h-6 rounded mx-auto mb-1"
                                 style={{
-                                  backgroundColor: tab === 'Home' ? settings.brand_color || DEFAULT_BRAND_COLOR : '#e5e7eb',
+                                  backgroundColor: tab === 'Home' ? settings.primary_color || DEFAULT_BRAND_COLOR : '#e5e7eb',
                                 }}
                               />
                               {tab}
@@ -601,7 +601,7 @@ export default function BrandingPage() {
                       {/* Header */}
                       <div
                         className="h-16 flex items-center justify-between px-6"
-                        style={{ backgroundColor: settings.brand_color || DEFAULT_BRAND_COLOR }}
+                        style={{ backgroundColor: settings.primary_color || DEFAULT_BRAND_COLOR }}
                       >
                         {settings.logo_url ? (
                           <img
@@ -659,7 +659,7 @@ export default function BrandingPage() {
                         <div className="flex gap-3">
                           <button
                             className="px-4 py-2 rounded-lg text-white text-sm"
-                            style={{ backgroundColor: settings.brand_color || DEFAULT_BRAND_COLOR }}
+                            style={{ backgroundColor: settings.primary_color || DEFAULT_BRAND_COLOR }}
                           >
                             View Agenda
                           </button>

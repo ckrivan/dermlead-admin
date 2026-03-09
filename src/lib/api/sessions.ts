@@ -364,12 +364,11 @@ export const SESSION_TYPES = [
   { value: 'presentation', label: 'Presentation' },
   { value: 'workshop', label: 'Workshop' },
   { value: 'panel', label: 'Panel Discussion' },
-  { value: 'symposium', label: 'Symposium' },
   { value: 'breakout', label: 'Breakout Session' },
   { value: 'networking', label: 'Networking' },
   { value: 'meal', label: 'Meal Break' },
   { value: 'break', label: 'Break' },
-  { value: 'registration', label: 'Registration' },
+  { value: 'exhibition', label: 'Exhibition' },
   { value: 'other', label: 'Other' },
 ]
 
@@ -377,6 +376,5 @@ export const SPEAKER_ROLES = [
   { value: 'speaker', label: 'Speaker' },
   { value: 'moderator', label: 'Moderator' },
   { value: 'panelist', label: 'Panelist' },
-  { value: 'chair', label: 'Chair' },
-  { value: 'co-chair', label: 'Co-Chair' },
+  { value: 'host', label: 'Host' },
 ]

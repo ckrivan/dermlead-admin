@@ -62,7 +62,7 @@ export default function EditEventPage({ params }: EditEventPageProps) {
     end_date: "",
     description: "",
     invite_code: "",
-    brand_color: "#3b82f6",
+    primary_color: "#3b82f6",
   });
 
   const [tracks, setTracks] = useState<string[]>([]);
@@ -84,9 +84,9 @@ export default function EditEventPage({ params }: EditEventPageProps) {
             end_date: data.end_date,
             description: data.description || "",
             invite_code: data.invite_code || "",
-            brand_color: data.brand_color || "#3b82f6",
+            primary_color: data.primary_color || "#3b82f6",
           });
-          setTracks(data.tracks || []);
+          setTracks([]);
           setBannerPreview(data.banner_url);
           setLogoPreview(data.logo_url);
         }
@@ -199,7 +199,7 @@ export default function EditEventPage({ params }: EditEventPageProps) {
         end_date: formData.end_date,
         description: formData.description || null,
         invite_code: formData.invite_code || null,
-        brand_color: formData.brand_color,
+        primary_color: formData.primary_color,
       });
 
       router.push("/events");
@@ -356,9 +356,9 @@ export default function EditEventPage({ params }: EditEventPageProps) {
 
                   <ColorPicker
                     label="Brand Color"
-                    value={formData.brand_color}
+                    value={formData.primary_color}
                     onChange={(color) =>
-                      setFormData((prev) => ({ ...prev, brand_color: color }))
+                      setFormData((prev) => ({ ...prev, primary_color: color }))
                     }
                   />
                 </CardBody>
