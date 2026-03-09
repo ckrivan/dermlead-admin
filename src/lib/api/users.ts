@@ -136,24 +136,18 @@ export async function inviteUser(inviteData: InviteUserData): Promise<{ success:
 
 /**
  * Delete a user permanently.
- * Nullifies references (leads.captured_by, attendees.checked_in_by) then removes the profile.
+ * Calls server-side API route which uses service_role key to bypass RLS.
  */
 export async function deleteUser(userId: string): Promise<void> {
-  const supabase = createClient()
+  const res = await fetch('/api/users', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+  })
 
-  // Clear foreign key references before deleting
-  await supabase.from('leads').update({ captured_by: null }).eq('captured_by', userId)
-  await supabase.from('attendees').update({ checked_in_by: null }).eq('checked_in_by', userId)
-  await supabase.from('attendees').update({ profile_id: null }).eq('profile_id', userId)
-
-  const { error } = await supabase
-    .from('profiles')
-    .delete()
-    .eq('id', userId)
-
-  if (error) {
-    console.error('Error deleting user:', error)
-    throw error
+  if (!res.ok) {
+    const data = await res.json()
+    throw new Error(data.error || 'Failed to delete user')
   }
 }
 
