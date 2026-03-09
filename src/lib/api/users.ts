@@ -78,14 +78,15 @@ export async function updateUser(userId: string, updates: UpdateUserData): Promi
 }
 
 /**
- * Deactivate a user (soft delete).
- * Routes through server API to bypass RLS.
+ * Deactivate a user (soft delete) and revoke all their auth sessions.
+ * Routes through dedicated server API that uses service_role key to
+ * set is_active=false and call auth.admin.signOut to invalidate tokens.
  */
 export async function deactivateUser(userId: string): Promise<void> {
-  const res = await fetch('/api/users', {
-    method: 'PATCH',
+  const res = await fetch('/api/users/deactivate', {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, updates: { is_active: false } }),
+    body: JSON.stringify({ userId }),
   })
 
   if (!res.ok) {
@@ -95,14 +96,14 @@ export async function deactivateUser(userId: string): Promise<void> {
 }
 
 /**
- * Reactivate a user.
- * Routes through server API to bypass RLS.
+ * Reactivate a deactivated user.
+ * Routes through dedicated server API that uses service_role key.
  */
 export async function reactivateUser(userId: string): Promise<void> {
-  const res = await fetch('/api/users', {
-    method: 'PATCH',
+  const res = await fetch('/api/users/reactivate', {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, updates: { is_active: true } }),
+    body: JSON.stringify({ userId }),
   })
 
   if (!res.ok) {
