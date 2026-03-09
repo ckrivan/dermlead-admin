@@ -114,49 +114,47 @@ export async function reactivateUser(userId: string): Promise<void> {
 }
 
 /**
- * Invite a new user to the organization
- * This requires the service role key for admin.inviteUserByEmail
- * For now, we'll create the profile and the user can set up via magic link
+ * Invite a new user to the organization.
+ * Calls the server-side API route which uses the service_role key
+ * to create the auth user, send a magic link, and set up the profile.
  */
 export async function inviteUser(inviteData: InviteUserData): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClient()
+  const res = await fetch('/api/invite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(inviteData),
+  })
 
-  // First check if user already exists
-  const { data: existingUser } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', inviteData.email)
-    .single()
+  const data = await res.json()
 
-  if (existingUser) {
-    return { success: false, error: 'A user with this email already exists' }
-  }
-
-  // For a proper invite flow, we'd use admin.inviteUserByEmail
-  // which requires service role key. For now, we create a pending profile
-  // that will be linked when the user signs up
-
-  // Note: In production, you'd call an Edge Function that has the service role key
-  // to properly invite the user via Supabase auth
-
-  // Create a placeholder profile with the invite data
-  const { error } = await supabase
-    .from('profiles')
-    .insert({
-      id: crypto.randomUUID(), // Temporary ID, will be replaced when user signs up
-      email: inviteData.email,
-      full_name: inviteData.full_name,
-      role: inviteData.role,
-      organization_id: inviteData.organization_id,
-      is_active: false, // Pending activation
-    })
-
-  if (error) {
-    console.error('Error inviting user:', error)
-    return { success: false, error: error.message }
+  if (!res.ok) {
+    return { success: false, error: data.error || 'Failed to invite user' }
   }
 
   return { success: true }
+}
+
+/**
+ * Delete a user permanently.
+ * Nullifies references (leads.captured_by, attendees.checked_in_by) then removes the profile.
+ */
+export async function deleteUser(userId: string): Promise<void> {
+  const supabase = createClient()
+
+  // Clear foreign key references before deleting
+  await supabase.from('leads').update({ captured_by: null }).eq('captured_by', userId)
+  await supabase.from('attendees').update({ checked_in_by: null }).eq('checked_in_by', userId)
+  await supabase.from('attendees').update({ profile_id: null }).eq('profile_id', userId)
+
+  const { error } = await supabase
+    .from('profiles')
+    .delete()
+    .eq('id', userId)
+
+  if (error) {
+    console.error('Error deleting user:', error)
+    throw error
+  }
 }
 
 /**

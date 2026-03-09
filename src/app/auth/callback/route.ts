@@ -8,9 +8,17 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
+      // If user was invited and hasn't set a password yet, send to setup page
+      const user = data.user
+      if (user?.invited_at) {
+        // invited_at is set by inviteUserByEmail — redirect to password setup
+        // (If they already set a password before, the setup page will handle it gracefully)
+        return NextResponse.redirect(`${origin}/auth/setup-password`)
+      }
+
       return NextResponse.redirect(`${origin}${next}`)
     }
   }

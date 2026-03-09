@@ -40,7 +40,7 @@ export async function getAnnouncement(id: string): Promise<AnnouncementWithGroup
   let groups: AttendeeGroup[] = []
   if (announcement.target_groups && announcement.target_groups.length > 0) {
     const { data: groupsData } = await supabase
-      .from('attendee_groups')
+      .from('event_groups')
       .select('*')
       .in('id', announcement.target_groups)
 

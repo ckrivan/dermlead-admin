@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { MoreHorizontal, Shield, User, UserX, UserCheck, Pencil } from 'lucide-react'
-import { UserWithEmail, deactivateUser, reactivateUser } from '@/lib/api/users'
+import { MoreHorizontal, Shield, User, UserX, UserCheck, Pencil, Trash2 } from 'lucide-react'
+import { UserWithEmail, deactivateUser, reactivateUser, deleteUser } from '@/lib/api/users'
 import { Badge } from '@/components/ui'
 
 interface UserTableProps {
@@ -15,6 +15,7 @@ interface UserTableProps {
 export function UserTable({ users, currentUserId, onEditUser, onRefresh }: UserTableProps) {
   const [actionMenuId, setActionMenuId] = useState<string | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const handleDeactivate = async (userId: string) => {
     setLoading(userId)
@@ -38,6 +39,20 @@ export function UserTable({ users, currentUserId, onEditUser, onRefresh }: UserT
       console.error('Failed to reactivate user:', error)
     } finally {
       setLoading(null)
+      setActionMenuId(null)
+    }
+  }
+
+  const handleDelete = async (userId: string) => {
+    setLoading(userId)
+    try {
+      await deleteUser(userId)
+      onRefresh()
+    } catch (error) {
+      console.error('Failed to delete user:', error)
+    } finally {
+      setLoading(null)
+      setConfirmDeleteId(null)
       setActionMenuId(null)
     }
   }
@@ -163,6 +178,17 @@ export function UserTable({ users, currentUserId, onEditUser, onRefresh }: UserT
                           Reactivate
                         </button>
                       )}
+                      <div className="border-t border-[var(--card-border)] my-1" />
+                      <button
+                        onClick={() => {
+                          setConfirmDeleteId(user.id)
+                          setActionMenuId(null)
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[var(--accent-danger)] hover:bg-[var(--accent-danger)]/10 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                        Delete Permanently
+                      </button>
                     </div>
                   )}
                 </div>
@@ -175,6 +201,43 @@ export function UserTable({ users, currentUserId, onEditUser, onRefresh }: UserT
       {users.length === 0 && (
         <div className="text-center py-12 text-[var(--foreground-muted)]">
           No users found
+        </div>
+      )}
+
+      {/* Delete confirmation dialog */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6 max-w-md mx-4 shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-[var(--accent-danger)]/20 flex items-center justify-center">
+                <Trash2 size={20} className="text-[var(--accent-danger)]" />
+              </div>
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">Delete Team Member</h3>
+            </div>
+            <p className="text-sm text-[var(--foreground-muted)] mb-2">
+              Are you sure you want to permanently delete{' '}
+              <strong>{users.find(u => u.id === confirmDeleteId)?.full_name || 'this user'}</strong>?
+            </p>
+            <p className="text-sm text-[var(--accent-danger)] mb-6">
+              This action cannot be undone. Their leads and check-in history will be preserved but unlinked from this account.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                disabled={loading === confirmDeleteId}
+                className="px-4 py-2 text-sm rounded-lg border border-[var(--card-border)] text-[var(--foreground)] hover:bg-[var(--background-tertiary)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(confirmDeleteId)}
+                disabled={loading === confirmDeleteId}
+                className="px-4 py-2 text-sm rounded-lg bg-[var(--accent-danger)] text-white hover:opacity-90 transition-colors disabled:opacity-50"
+              >
+                {loading === confirmDeleteId ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

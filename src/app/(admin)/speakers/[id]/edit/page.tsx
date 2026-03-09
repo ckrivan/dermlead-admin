@@ -33,10 +33,21 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
     email: '',
     linkedin_url: '',
     website_url: '',
-    role: 'faculty',
+    role: ['faculty'] as string[],
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const toggleRole = (roleValue: string) => {
+    setFormData((prev) => {
+      const currentRoles = prev.role
+      if (currentRoles.includes(roleValue)) {
+        if (currentRoles.length === 1) return prev
+        return { ...prev, role: currentRoles.filter((r) => r !== roleValue) }
+      }
+      return { ...prev, role: [...currentRoles, roleValue] }
+    })
+  }
 
   useEffect(() => {
     async function loadSpeaker() {
@@ -53,7 +64,7 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
             email: data.email || '',
             linkedin_url: data.linkedin_url || '',
             website_url: data.website_url || '',
-            role: data.role || 'faculty',
+            role: data.role || ['faculty'],
           })
           if (data.photo_url) {
             setPhotoPreview(data.photo_url)
@@ -122,7 +133,7 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
         linkedin_url: formData.linkedin_url || null,
         website_url: formData.website_url || null,
         photo_url: photoUrl,
-        role: formData.role || 'faculty',
+        role: formData.role,
       })
 
       router.push('/speakers')
@@ -273,18 +284,26 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
                     />
                     <div className="space-y-1">
                       <label className="block text-sm font-medium text-[var(--foreground)]">
-                        Role
+                        Roles
                       </label>
-                      <select
-                        name="role"
-                        value={formData.role}
-                        onChange={handleChange}
-                        className="w-full px-4 py-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)]"
-                      >
-                        <option value="faculty">Faculty</option>
-                        <option value="leader">Leader</option>
-                        <option value="guest">Guest</option>
-                      </select>
+                      <div className="flex flex-wrap gap-3 pt-1">
+                        {[
+                          { value: 'faculty', label: 'Faculty' },
+                          { value: 'leader', label: 'Leader' },
+                          { value: 'industry', label: 'Industry' },
+                          { value: 'guest', label: 'Guest' },
+                        ].map((opt) => (
+                          <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.role.includes(opt.value)}
+                              onChange={() => toggleRole(opt.value)}
+                              className="rounded border-[var(--input-border)] text-[var(--accent-primary)] focus:ring-[var(--input-focus)]"
+                            />
+                            <span className="text-sm text-[var(--foreground)]">{opt.label}</span>
+                          </label>
+                        ))}
+                      </div>
                     </div>
                   </div>
 

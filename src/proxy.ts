@@ -65,9 +65,9 @@ export async function proxy(request: NextRequest) {
     .single()
 
   if (profileError) {
-    // Transient DB error — don't lock out authenticated users
+    // Profile not found or DB error — deny access (user can refresh to retry)
     console.error('[proxy] Profile lookup failed:', profileError.message)
-    return supabaseResponse
+    return NextResponse.redirect(new URL('/unauthorized', request.url))
   }
 
   if (!profile || profile.role !== 'admin' || !profile.is_active) {

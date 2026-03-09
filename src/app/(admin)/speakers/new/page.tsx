@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, CardFooter, Button, Input, Textarea } from '@/components/ui'
-import { createSpeaker, uploadSpeakerPhoto } from '@/lib/api/speakers'
+import { createSpeaker, updateSpeaker, uploadSpeakerPhoto } from '@/lib/api/speakers'
 import { getEvents } from '@/lib/api/events'
 import type { Event } from '@/types/database'
 import { isAbortError } from '@/contexts/EventContext'
@@ -31,10 +31,21 @@ function NewSpeakerForm() {
     email: '',
     linkedin_url: '',
     website_url: '',
-    role: 'faculty',
+    role: ['faculty'] as string[],
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const toggleRole = (roleValue: string) => {
+    setFormData((prev) => {
+      const currentRoles = prev.role
+      if (currentRoles.includes(roleValue)) {
+        if (currentRoles.length === 1) return prev
+        return { ...prev, role: currentRoles.filter((r) => r !== roleValue) }
+      }
+      return { ...prev, role: [...currentRoles, roleValue] }
+    })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -113,12 +124,12 @@ function NewSpeakerForm() {
         linkedin_url: formData.linkedin_url || null,
         website_url: formData.website_url || null,
         photo_url: null,
-        role: formData.role || 'faculty',
+        role: formData.role,
       })
 
       if (photoFile) {
         const photoUrl = await uploadSpeakerPhoto(speaker.id, photoFile)
-        console.log('Photo uploaded:', photoUrl)
+        await updateSpeaker(speaker.id, { photo_url: photoUrl })
       }
 
       router.push('/speakers')
@@ -234,18 +245,26 @@ function NewSpeakerForm() {
                   />
                   <div className="space-y-1">
                     <label className="block text-sm font-medium text-[var(--foreground)]">
-                      Role
+                      Roles
                     </label>
-                    <select
-                      name="role"
-                      value={formData.role}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)]"
-                    >
-                      <option value="faculty">Faculty</option>
-                      <option value="leader">Leader</option>
-                      <option value="guest">Guest</option>
-                    </select>
+                    <div className="flex flex-wrap gap-3 pt-1">
+                      {[
+                        { value: 'faculty', label: 'Faculty' },
+                        { value: 'leader', label: 'Leader' },
+                        { value: 'industry', label: 'Industry' },
+                        { value: 'guest', label: 'Guest' },
+                      ].map((opt) => (
+                        <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.role.includes(opt.value)}
+                            onChange={() => toggleRole(opt.value)}
+                            className="rounded border-[var(--input-border)] text-[var(--accent-primary)] focus:ring-[var(--input-focus)]"
+                          />
+                          <span className="text-sm text-[var(--foreground)]">{opt.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
 

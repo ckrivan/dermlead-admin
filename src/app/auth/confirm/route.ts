@@ -10,12 +10,23 @@ export async function GET(request: NextRequest) {
 
   if (token_hash && type) {
     const supabase = await createClient()
-    const { error } = await supabase.auth.verifyOtp({
+    const { data, error } = await supabase.auth.verifyOtp({
       type,
       token_hash,
     })
 
     if (!error) {
+      // If this is an invite verification, redirect to password setup
+      if (type === 'invite') {
+        return NextResponse.redirect(`${origin}/auth/setup-password`)
+      }
+
+      // Check if user was invited (fallback detection)
+      const user = data.user
+      if (user?.invited_at) {
+        return NextResponse.redirect(`${origin}/auth/setup-password`)
+      }
+
       return NextResponse.redirect(`${origin}${next}`)
     }
   }

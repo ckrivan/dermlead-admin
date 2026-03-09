@@ -264,11 +264,12 @@ export default function SpeakersPage() {
               { value: 'all', label: 'All' },
               { value: 'faculty', label: 'Faculty' },
               { value: 'leader', label: 'Leaders' },
+              { value: 'industry', label: 'Industry' },
               { value: 'guest', label: 'Guests' },
             ].map((tab) => {
               const count = tab.value === 'all'
                 ? speakers.length
-                : speakers.filter((s) => (s.role || 'faculty') === tab.value).length
+                : speakers.filter((s) => (s.role || ['faculty']).includes(tab.value)).length
               if (tab.value !== 'all' && count === 0) return null
               return (
                 <button
@@ -350,7 +351,7 @@ export default function SpeakersPage() {
               </div>
             )}
             {speakers
-              .filter((s) => roleFilter === 'all' || (s.role || 'faculty') === roleFilter)
+              .filter((s) => roleFilter === 'all' || (s.role || ['faculty']).includes(roleFilter))
               .map((speaker) => (
               <Card
                 key={speaker.id}
@@ -401,15 +402,17 @@ export default function SpeakersPage() {
                             {speaker.credentials}
                           </span>
                         )}
-                        {speaker.role && speaker.role !== 'faculty' && (
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                            speaker.role === 'leader'
+                        {speaker.role?.filter((r) => r !== 'faculty').map((r) => (
+                          <span key={r} className={`text-xs px-1.5 py-0.5 rounded-full ${
+                            r === 'leader'
                               ? 'bg-purple-500/15 text-purple-400'
+                              : r === 'industry'
+                              ? 'bg-amber-500/15 text-amber-400'
                               : 'bg-blue-500/15 text-blue-400'
                           }`}>
-                            {speaker.role === 'leader' ? 'Leader' : 'Guest'}
+                            {r === 'leader' ? 'Leader' : r === 'industry' ? 'Industry' : 'Guest'}
                           </span>
-                        )}
+                        ))}
                       </div>
                       {speaker.institution && (
                         <div className="flex items-center gap-1 mt-1 text-sm text-[var(--foreground-muted)]">
