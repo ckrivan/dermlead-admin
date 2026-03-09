@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { useState, useEffect, use } from 'react'
-import { useRouter } from 'next/navigation'
-import { Header } from '@/components/layout/Header'
+import { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import { Header } from "@/components/layout/Header";
 import {
   Card,
   CardBody,
@@ -12,7 +12,7 @@ import {
   Textarea,
   ColorPicker,
   ConfirmDialog,
-} from '@/components/ui'
+} from "@/components/ui";
 import {
   getEvent,
   updateEvent,
@@ -22,161 +22,174 @@ import {
   uploadEventLogo,
   generateSlug,
   generateInviteCode,
-} from '@/lib/api/events'
-import type { Event } from '@/types/database'
-import { ArrowLeft, Save, Trash2, Archive, Upload, RefreshCw, X, Plus } from 'lucide-react'
-import Link from 'next/link'
+} from "@/lib/api/events";
+import type { Event } from "@/types/database";
+import {
+  ArrowLeft,
+  Save,
+  Trash2,
+  Archive,
+  Upload,
+  RefreshCw,
+  X,
+  Plus,
+} from "lucide-react";
+import Link from "next/link";
 
 interface EditEventPageProps {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>;
 }
 
 export default function EditEventPage({ params }: EditEventPageProps) {
-  const { id } = use(params)
-  const router = useRouter()
+  const { id } = use(params);
+  const router = useRouter();
 
-  const [event, setEvent] = useState<Event | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [archiving, setArchiving] = useState(false)
-  const [uploadingBanner, setUploadingBanner] = useState(false)
-  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [event, setEvent] = useState<Event | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [showArchiveDialog, setShowArchiveDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
 
   const [formData, setFormData] = useState({
-    name: '',
-    location: '',
-    start_date: '',
-    end_date: '',
-    description: '',
-    invite_code: '',
-    brand_color: '#3b82f6',
-  })
+    name: "",
+    location: "",
+    start_date: "",
+    end_date: "",
+    description: "",
+    invite_code: "",
+    brand_color: "#3b82f6",
+  });
 
-  const [tracks, setTracks] = useState<string[]>([])
-  const [newTrack, setNewTrack] = useState('')
-  const [bannerPreview, setBannerPreview] = useState<string | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [tracks, setTracks] = useState<string[]>([]);
+  const [newTrack, setNewTrack] = useState("");
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     async function loadEvent() {
       try {
-        const data = await getEvent(id)
+        const data = await getEvent(id);
         if (data) {
-          setEvent(data)
+          setEvent(data);
           setFormData({
             name: data.name,
-            location: data.location || '',
+            location: data.location || "",
             start_date: data.start_date,
             end_date: data.end_date,
-            description: data.description || '',
-            invite_code: data.invite_code || '',
-            brand_color: data.brand_color || '#3b82f6',
-          })
-          setTracks(data.tracks || [])
-          setBannerPreview(data.banner_url)
-          setLogoPreview(data.logo_url)
+            description: data.description || "",
+            invite_code: data.invite_code || "",
+            brand_color: data.brand_color || "#3b82f6",
+          });
+          setTracks(data.tracks || []);
+          setBannerPreview(data.banner_url);
+          setLogoPreview(data.logo_url);
         }
       } catch (error) {
-        console.error('Error loading event:', error)
+        console.error("Error loading event:", error);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
-    loadEvent()
-  }, [id])
+    loadEvent();
+  }, [id]);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: '' }))
+      setErrors((prev) => ({ ...prev, [name]: "" }));
     }
-  }
+  };
 
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    setUploadingBanner(true)
+    setUploadingBanner(true);
     try {
-      const reader = new FileReader()
-      reader.onload = (e) => setBannerPreview(e.target?.result as string)
-      reader.readAsDataURL(file)
+      const reader = new FileReader();
+      reader.onload = (e) => setBannerPreview(e.target?.result as string);
+      reader.readAsDataURL(file);
 
-      const url = await uploadEventBanner(id, file)
-      setBannerPreview(url)
-      await updateEvent(id, { banner_url: url })
+      const url = await uploadEventBanner(id, file);
+      setBannerPreview(url);
+      await updateEvent(id, { banner_url: url });
     } catch (error) {
-      console.error('Error uploading banner:', error)
-      alert('Failed to upload banner. Please try again.')
+      console.error("Error uploading banner:", error);
+      alert("Failed to upload banner. Please try again.");
     } finally {
-      setUploadingBanner(false)
+      setUploadingBanner(false);
     }
-  }
+  };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    setUploadingLogo(true)
+    setUploadingLogo(true);
     try {
-      const reader = new FileReader()
-      reader.onload = (e) => setLogoPreview(e.target?.result as string)
-      reader.readAsDataURL(file)
+      const reader = new FileReader();
+      reader.onload = (e) => setLogoPreview(e.target?.result as string);
+      reader.readAsDataURL(file);
 
-      const url = await uploadEventLogo(id, file)
-      setLogoPreview(url)
-      await updateEvent(id, { logo_url: url })
+      const url = await uploadEventLogo(id, file);
+      setLogoPreview(url);
+      await updateEvent(id, { logo_url: url });
     } catch (error) {
-      console.error('Error uploading logo:', error)
-      alert('Failed to upload logo. Please try again.')
+      console.error("Error uploading logo:", error);
+      alert("Failed to upload logo. Please try again.");
     } finally {
-      setUploadingLogo(false)
+      setUploadingLogo(false);
     }
-  }
+  };
 
   const handleGenerateInviteCode = () => {
-    const code = generateInviteCode()
-    setFormData((prev) => ({ ...prev, invite_code: code }))
-  }
+    const code = generateInviteCode();
+    setFormData((prev) => ({ ...prev, invite_code: code }));
+  };
 
   const addTrack = () => {
     if (newTrack.trim() && !tracks.includes(newTrack.trim())) {
-      setTracks((prev) => [...prev, newTrack.trim()])
-      setNewTrack('')
+      setTracks((prev) => [...prev, newTrack.trim()]);
+      setNewTrack("");
     }
-  }
+  };
 
   const removeTrack = (track: string) => {
-    setTracks((prev) => prev.filter((t) => t !== track))
-  }
+    setTracks((prev) => prev.filter((t) => t !== track));
+  };
 
   const validate = () => {
-    const newErrors: Record<string, string> = {}
+    const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) newErrors.name = 'Event name is required'
-    if (!formData.start_date) newErrors.start_date = 'Start date is required'
-    if (!formData.end_date) newErrors.end_date = 'End date is required'
-    if (formData.start_date && formData.end_date && formData.start_date > formData.end_date) {
-      newErrors.end_date = 'End date must be after start date'
+    if (!formData.name.trim()) newErrors.name = "Event name is required";
+    if (!formData.start_date) newErrors.start_date = "Start date is required";
+    if (!formData.end_date) newErrors.end_date = "End date is required";
+    if (
+      formData.start_date &&
+      formData.end_date &&
+      formData.start_date > formData.end_date
+    ) {
+      newErrors.end_date = "End date must be after start date";
     }
 
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validate()) return
+    e.preventDefault();
+    if (!validate()) return;
 
-    setSaving(true)
+    setSaving(true);
     try {
       await updateEvent(id, {
         name: formData.name,
@@ -187,45 +200,44 @@ export default function EditEventPage({ params }: EditEventPageProps) {
         description: formData.description || null,
         invite_code: formData.invite_code || null,
         brand_color: formData.brand_color,
-        tracks: tracks.length > 0 ? tracks : null,
-      })
+      });
 
-      router.push('/events')
+      router.push("/events");
     } catch (error) {
-      console.error('Error updating event:', error)
-      alert('Failed to update event. Please try again.')
+      console.error("Error updating event:", error);
+      alert("Failed to update event. Please try again.");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleDelete = async () => {
-    setDeleting(true)
+    setDeleting(true);
     try {
-      await deleteEvent(id)
-      router.push('/events')
+      await deleteEvent(id);
+      router.push("/events");
     } catch (error) {
-      console.error('Error deleting event:', error)
-      alert('Failed to delete event. Please try again.')
+      console.error("Error deleting event:", error);
+      alert("Failed to delete event. Please try again.");
     } finally {
-      setDeleting(false)
-      setShowDeleteDialog(false)
+      setDeleting(false);
+      setShowDeleteDialog(false);
     }
-  }
+  };
 
   const handleArchive = async () => {
-    setArchiving(true)
+    setArchiving(true);
     try {
-      await archiveEvent(id)
-      router.push('/events')
+      await archiveEvent(id);
+      router.push("/events");
     } catch (error) {
-      console.error('Error archiving event:', error)
-      alert('Failed to archive event. Please try again.')
+      console.error("Error archiving event:", error);
+      alert("Failed to archive event. Please try again.");
     } finally {
-      setArchiving(false)
-      setShowArchiveDialog(false)
+      setArchiving(false);
+      setShowArchiveDialog(false);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -235,7 +247,7 @@ export default function EditEventPage({ params }: EditEventPageProps) {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)]" />
         </div>
       </>
-    )
+    );
   }
 
   if (!event) {
@@ -255,7 +267,7 @@ export default function EditEventPage({ params }: EditEventPageProps) {
           </Card>
         </div>
       </>
-    )
+    );
   }
 
   return (
@@ -277,7 +289,9 @@ export default function EditEventPage({ params }: EditEventPageProps) {
             <div className="lg:col-span-2 space-y-6">
               <Card>
                 <CardBody className="space-y-4">
-                  <h3 className="font-semibold text-[var(--foreground)]">Event Details</h3>
+                  <h3 className="font-semibold text-[var(--foreground)]">
+                    Event Details
+                  </h3>
 
                   <Input
                     label="Event Name *"
@@ -309,7 +323,9 @@ export default function EditEventPage({ params }: EditEventPageProps) {
 
               <Card>
                 <CardBody className="space-y-4">
-                  <h3 className="font-semibold text-[var(--foreground)]">Dates</h3>
+                  <h3 className="font-semibold text-[var(--foreground)]">
+                    Dates
+                  </h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
@@ -334,21 +350,28 @@ export default function EditEventPage({ params }: EditEventPageProps) {
 
               <Card>
                 <CardBody className="space-y-4">
-                  <h3 className="font-semibold text-[var(--foreground)]">Branding</h3>
+                  <h3 className="font-semibold text-[var(--foreground)]">
+                    Branding
+                  </h3>
 
                   <ColorPicker
                     label="Brand Color"
                     value={formData.brand_color}
-                    onChange={(color) => setFormData((prev) => ({ ...prev, brand_color: color }))}
+                    onChange={(color) =>
+                      setFormData((prev) => ({ ...prev, brand_color: color }))
+                    }
                   />
                 </CardBody>
               </Card>
 
               <Card>
                 <CardBody className="space-y-4">
-                  <h3 className="font-semibold text-[var(--foreground)]">Tracks</h3>
+                  <h3 className="font-semibold text-[var(--foreground)]">
+                    Tracks
+                  </h3>
                   <p className="text-sm text-[var(--foreground-muted)]">
-                    Define tracks for organizing sessions (e.g., Clinical, Business, Research)
+                    Define tracks for organizing sessions (e.g., Clinical,
+                    Business, Research)
                   </p>
 
                   <div className="flex gap-2">
@@ -357,13 +380,17 @@ export default function EditEventPage({ params }: EditEventPageProps) {
                       onChange={(e) => setNewTrack(e.target.value)}
                       placeholder="Add a track..."
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          addTrack()
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addTrack();
                         }
                       }}
                     />
-                    <Button type="button" onClick={addTrack} icon={<Plus size={18} />}>
+                    <Button
+                      type="button"
+                      onClick={addTrack}
+                      icon={<Plus size={18} />}
+                    >
                       Add
                     </Button>
                   </div>
@@ -397,7 +424,8 @@ export default function EditEventPage({ params }: EditEventPageProps) {
                     Danger Zone
                   </h3>
                   <p className="text-sm text-[var(--foreground-muted)] mb-4">
-                    Archive this event to hide it from the list, or permanently delete it along with all associated data.
+                    Archive this event to hide it from the list, or permanently
+                    delete it along with all associated data.
                   </p>
                   <div className="flex gap-3">
                     <Button
@@ -426,7 +454,9 @@ export default function EditEventPage({ params }: EditEventPageProps) {
               {/* Banner Upload */}
               <Card>
                 <CardBody className="space-y-4">
-                  <h3 className="font-semibold text-[var(--foreground)]">Event Banner</h3>
+                  <h3 className="font-semibold text-[var(--foreground)]">
+                    Event Banner
+                  </h3>
 
                   {bannerPreview ? (
                     <div className="relative">
@@ -436,7 +466,9 @@ export default function EditEventPage({ params }: EditEventPageProps) {
                         className="w-full h-40 object-cover rounded-lg"
                       />
                       <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-                        <span className="text-white text-sm font-medium">Change Banner</span>
+                        <span className="text-white text-sm font-medium">
+                          Change Banner
+                        </span>
                         <input
                           type="file"
                           accept="image/*"
@@ -451,7 +483,10 @@ export default function EditEventPage({ params }: EditEventPageProps) {
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)]" />
                       ) : (
                         <>
-                          <Upload size={24} className="text-[var(--foreground-muted)] mb-2" />
+                          <Upload
+                            size={24}
+                            className="text-[var(--foreground-muted)] mb-2"
+                          />
                           <span className="text-sm text-[var(--foreground-muted)]">
                             Upload banner image
                           </span>
@@ -472,7 +507,9 @@ export default function EditEventPage({ params }: EditEventPageProps) {
               {/* Logo Upload */}
               <Card>
                 <CardBody className="space-y-4">
-                  <h3 className="font-semibold text-[var(--foreground)]">Event Logo</h3>
+                  <h3 className="font-semibold text-[var(--foreground)]">
+                    Event Logo
+                  </h3>
 
                   {logoPreview ? (
                     <div className="relative">
@@ -482,7 +519,9 @@ export default function EditEventPage({ params }: EditEventPageProps) {
                         className="w-full h-32 object-contain rounded-lg bg-[var(--background-tertiary)] p-4"
                       />
                       <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-                        <span className="text-white text-sm font-medium">Change Logo</span>
+                        <span className="text-white text-sm font-medium">
+                          Change Logo
+                        </span>
                         <input
                           type="file"
                           accept="image/*"
@@ -497,7 +536,10 @@ export default function EditEventPage({ params }: EditEventPageProps) {
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)]" />
                       ) : (
                         <>
-                          <Upload size={24} className="text-[var(--foreground-muted)] mb-2" />
+                          <Upload
+                            size={24}
+                            className="text-[var(--foreground-muted)] mb-2"
+                          />
                           <span className="text-sm text-[var(--foreground-muted)]">
                             Upload logo image
                           </span>
@@ -518,7 +560,9 @@ export default function EditEventPage({ params }: EditEventPageProps) {
               {/* Invite Code */}
               <Card>
                 <CardBody className="space-y-4">
-                  <h3 className="font-semibold text-[var(--foreground)]">Invite Code</h3>
+                  <h3 className="font-semibold text-[var(--foreground)]">
+                    Invite Code
+                  </h3>
                   <p className="text-sm text-[var(--foreground-muted)]">
                     Attendees can use this code to join the event
                   </p>
@@ -551,19 +595,20 @@ export default function EditEventPage({ params }: EditEventPageProps) {
                     </div>
                   )}
                 </CardBody>
-
-                <CardFooter className="flex justify-end gap-3">
-                  <Link href="/events">
-                    <Button type="button" variant="ghost">
-                      Cancel
-                    </Button>
-                  </Link>
-                  <Button type="submit" loading={saving} icon={<Save size={18} />}>
-                    Save Changes
-                  </Button>
-                </CardFooter>
               </Card>
             </div>
+          </div>
+
+          {/* Save / Cancel — full width at bottom */}
+          <div className="flex justify-end gap-3 mt-6">
+            <Link href="/events">
+              <Button type="button" variant="ghost">
+                Cancel
+              </Button>
+            </Link>
+            <Button type="submit" loading={saving} icon={<Save size={18} />}>
+              Save Changes
+            </Button>
           </div>
         </form>
       </div>
@@ -594,5 +639,5 @@ export default function EditEventPage({ params }: EditEventPageProps) {
         loading={archiving}
       />
     </>
-  )
+  );
 }

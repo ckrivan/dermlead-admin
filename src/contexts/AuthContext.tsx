@@ -72,13 +72,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Safety net: if auth hangs for any reason (stale cookies, network, etc.)
-    // force-clear and redirect to login rather than spinning forever.
+    // Safety net: if auth initialization hangs, stop the spinner.
+    // Do NOT call signOut() here — that destroys a valid session when the
+    // issue is just slow initialization (e.g. lock contention).
     const safetyTimer = setTimeout(() => {
-      console.warn('[AuthContext] auth init timed out — clearing session')
-      setLoading(false)                       // guaranteed — runs synchronously
-      supabase.auth.signOut().catch(() => {}) // best-effort cleanup, non-blocking
-    }, 8000)
+      console.warn('[AuthContext] auth init timed out — unblocking UI')
+      setLoading(false)
+    }, 5000)
 
     // Get initial session
     const initAuth = async () => {

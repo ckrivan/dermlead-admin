@@ -114,15 +114,15 @@ flutter pub run build_runner build --delete-conflicting-outputs
 - `fcm_token` - Push notification token
 - `credentials`, `bio`, `specialty`, `institution`, `title`, `is_speaker`
 
-### Applied Migrations (Latest)
-1. `20260115120100_update_dates_to_2026.sql` - Date updates
-2. `20260115122141_add_demo_leads.sql` - Demo leads
-3. `20260115155830_sessions_schema.sql` - Sessions & agenda
-4. `20260115155844_demo_data.sql` - Demo event data
-5. `20260115162259_dev_public_access.sql` - Dev access
-6. `20260115185800_leads_dev_access.sql` - Permissive leads policies
-7. `20260115193000_add_fcm_token.sql` - FCM token support
-8. `20260115200000_attendees_dev_access.sql` - Permissive attendees policies
+### Applied Migrations (Latest - Local)
+1. `20260115170000_groups_announcements.sql` - Groups & announcements
+2. `20260115180000_exhibitors_sponsors_messaging.sql` - Exhibitors, sponsors, speaker messaging
+3. `20260115190000_storage_buckets.sql` - Supabase Storage setup
+4. `20260227120000_backfill_attendee_profiles.sql` - Link attendees to profiles
+5. `20260301120000_rename_groups_tables.sql` - Polymorphic grouping refactor
+6. `20260301130000_events_dev_access.sql` - Permissive events RLS
+7. `20260309120000_extend_attendees_wipe_demo.sql` - Add credentials/NPI/address columns, wipe demo data, create DID 2026 event
+8. `20260309130000_import_did2026_data.sql` - Import 142 real attendees + 35 industry partners
 
 ### Current RLS Mode
 ⚠️ **DEV MODE** - Permissive policies enabled for testing
@@ -182,7 +182,14 @@ phone             TEXT
 specialty         TEXT
 institution       TEXT
 title             TEXT
-badge_type        TEXT                -- NOT "registration_type"!
+credentials       TEXT                -- PA-C, MD, NP, etc.
+npi_number        TEXT                -- National Provider Identifier
+street_address    TEXT
+street_address_2  TEXT
+city              TEXT
+state             TEXT
+postal_code       TEXT
+badge_type        TEXT                -- CHECK: attendee, industry, speaker, exhibitor, sponsor, staff, vip, press
 badge_generated   BOOLEAN DEFAULT false
 badge_printed     BOOLEAN DEFAULT false
 qr_data           JSONB               -- NOT "qr_code" string!

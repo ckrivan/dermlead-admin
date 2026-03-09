@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
-import { Header } from '@/components/layout/Header'
-import { Card, CardBody, Button, Input } from '@/components/ui'
+import { useEffect, useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { Header } from "@/components/layout/Header";
+import { Card, CardBody, Button, Input } from "@/components/ui";
 import {
   getAttendeesWithGroups,
   createAttendee,
@@ -14,13 +14,13 @@ import {
   bulkCreateAttendees,
   BADGE_TYPES,
   AttendeeWithGroups,
-} from '@/lib/api/attendees'
-import { getGroups } from '@/lib/api/groups'
-import { downloadCSV, parseCSV } from '@/lib/utils/csv'
-import { useEvent } from '@/contexts/EventContext'
-import { createClient } from '@/lib/supabase/client'
-import { GroupAssignment } from '@/components/GroupAssignment'
-import type { EventGroup } from '@/types/database'
+} from "@/lib/api/attendees";
+import { getGroups } from "@/lib/api/groups";
+import { downloadCSV, parseCSV } from "@/lib/utils/csv";
+import { useEvent } from "@/contexts/EventContext";
+import { createClient } from "@/lib/supabase/client";
+import { GroupAssignment } from "@/components/GroupAssignment";
+import type { EventGroup } from "@/types/database";
 import {
   Plus,
   Users,
@@ -41,316 +41,432 @@ import {
   Clock,
   UserCheck,
   UserX,
-} from 'lucide-react'
-import { format, parseISO } from 'date-fns'
+  Building2,
+  SlidersHorizontal,
+  Eye,
+  EyeOff,
+} from "lucide-react";
+import { format, parseISO } from "date-fns";
 
 export default function AttendeesPage() {
-  const { selectedEvent } = useEvent()
-  const selectedEventId = selectedEvent?.id ?? ''
+  const { selectedEvent } = useEvent();
+  const selectedEventId = selectedEvent?.id ?? "";
 
-  const [attendees, setAttendees] = useState<AttendeeWithGroups[]>([])
-  const [groups, setGroups] = useState<EventGroup[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showImportModal, setShowImportModal] = useState(false)
-  const [importing, setImporting] = useState(false)
-  const [importResult, setImportResult] = useState<{ created: number; errors: string[] } | null>(
-    null
-  )
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [attendees, setAttendees] = useState<AttendeeWithGroups[]>([]);
+  const [groups, setGroups] = useState<EventGroup[]>([]);
+  const [admins, setAdmins] = useState<
+    { id: string; full_name: string | null; email: string | null }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{
+    created: number;
+    errors: string[];
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Add attendee modal state
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [addSubmitting, setAddSubmitting] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addSubmitting, setAddSubmitting] = useState(false);
   const [addForm, setAddForm] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    specialty: '',
-    institution: '',
-    badge_type: 'attendee',
-  })
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    specialty: "",
+    institution: "",
+    badge_type: "attendee",
+    credentials: "",
+    npi_number: "",
+    title: "",
+    street_address: "",
+    street_address_2: "",
+    city: "",
+    state: "",
+    postal_code: "",
+  });
 
   // Roster search state
-  const [rosterQuery, setRosterQuery] = useState('')
-  const [rosterResults, setRosterResults] = useState<AttendeeWithGroups[]>([])
-  const [rosterSearching, setRosterSearching] = useState(false)
-  const rosterDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [rosterQuery, setRosterQuery] = useState("");
+  const [rosterResults, setRosterResults] = useState<AttendeeWithGroups[]>([]);
+  const [rosterSearching, setRosterSearching] = useState(false);
+  const rosterDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Filter state
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedGroup, setSelectedGroup] = useState<string>('')
-  const [selectedRegType, setSelectedRegType] = useState<string>('')
-  const [showCheckedIn, setShowCheckedIn] = useState<'all' | 'checked_in' | 'not_checked_in'>('all')
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
+  const [selectedRegType, setSelectedRegType] = useState<string>("");
+  const [showCheckedIn, setShowCheckedIn] = useState<
+    "all" | "checked_in" | "not_checked_in"
+  >("all");
+
+  // Column visibility state — persisted to localStorage
+  const COLUMNS_STORAGE_KEY = "dermlead_attendee_columns";
+  const DEFAULT_COLUMNS = ["type", "groups", "status"];
+
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set(DEFAULT_COLUMNS);
+    try {
+      const saved = localStorage.getItem(COLUMNS_STORAGE_KEY);
+      if (saved) return new Set(JSON.parse(saved));
+    } catch {
+      // ignore
+    }
+    return new Set(DEFAULT_COLUMNS);
+  });
+  const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const columnPickerRef = useRef<HTMLDivElement>(null);
+
+  const AVAILABLE_COLUMNS = [
+    { key: "type", label: "Type" },
+    { key: "institution", label: "Institution / Company" },
+    { key: "specialty", label: "Specialty" },
+    { key: "phone", label: "Phone" },
+    { key: "title", label: "Title" },
+    { key: "credentials", label: "Credentials" },
+    { key: "city_state", label: "City / State" },
+    { key: "npi", label: "NPI Number" },
+    { key: "groups", label: "Groups" },
+    { key: "status", label: "Check-in Status" },
+  ];
+
+  const toggleColumn = (key: string) => {
+    setVisibleColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  // Close column picker when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        columnPickerRef.current &&
+        !columnPickerRef.current.contains(e.target as Node)
+      ) {
+        setShowColumnPicker(false);
+      }
+    }
+    if (showColumnPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showColumnPicker]);
 
   // Action state
-  const [openMoreMenu, setOpenMoreMenu] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<string | null>(null)
-  const [checkingIn, setCheckingIn] = useState<string | null>(null)
-  const [openMoreMenuRect, setOpenMoreMenuRect] = useState<DOMRect | null>(null)
+  const [openMoreMenu, setOpenMoreMenu] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [checkingIn, setCheckingIn] = useState<string | null>(null);
+  const [openMoreMenuRect, setOpenMoreMenuRect] = useState<DOMRect | null>(
+    null,
+  );
 
   // Roster search error state
-  const [rosterError, setRosterError] = useState<string | null>(null)
+  const [rosterError, setRosterError] = useState<string | null>(null);
 
   // Refetch function for real-time updates
   const refetchAttendees = useCallback(async () => {
-    if (!selectedEventId) return
+    if (!selectedEventId) return;
     try {
-      const attendeesData = await getAttendeesWithGroups(selectedEventId)
-      setAttendees(attendeesData)
+      const attendeesData = await getAttendeesWithGroups(selectedEventId);
+      setAttendees(attendeesData);
     } catch (error) {
-      console.error('Error refetching attendees:', error)
+      console.error("Error refetching attendees:", error);
     }
-  }, [selectedEventId])
+  }, [selectedEventId]);
 
   useEffect(() => {
     async function loadData() {
       if (!selectedEventId) {
-        setAttendees([])
-        setGroups([])
-        setLoading(false)
-        return
+        setAttendees([]);
+        setGroups([]);
+        setLoading(false);
+        return;
       }
 
-      setLoading(true)
+      setLoading(true);
       try {
-        const [attendeesData, groupsData] = await Promise.all([
+        const supabaseForAdmins = createClient();
+        const [attendeesData, groupsData, adminsResult] = await Promise.all([
           getAttendeesWithGroups(selectedEventId),
           getGroups(selectedEventId),
-        ])
-        setAttendees(attendeesData)
-        setGroups(groupsData)
+          supabaseForAdmins
+            .from("profiles")
+            .select("id, full_name, email")
+            .eq("organization_id", selectedEvent?.organization_id || "")
+            .eq("role", "admin"),
+        ]);
+        setAttendees(attendeesData);
+        setGroups(groupsData);
+        setAdmins(adminsResult.data || []);
       } catch (error) {
-        console.error('Error loading data:', error)
+        console.error("Error loading data:", error);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
-    loadData()
+    loadData();
 
     // Set up real-time subscription for attendees
-    if (!selectedEventId) return
+    if (!selectedEventId) return;
 
-    const supabase = createClient()
-    const channelName = `admin-attendees:${selectedEventId}`
+    const supabase = createClient();
+    const channelName = `admin-attendees:${selectedEventId}`;
 
     const channel = supabase
       .channel(channelName)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'attendees',
+          event: "*", // Listen to INSERT, UPDATE, DELETE
+          schema: "public",
+          table: "attendees",
           filter: `event_id=eq.${selectedEventId}`,
         },
         (payload: { eventType: string }) => {
-          console.log('Attendee change detected:', payload.eventType)
+          console.log("Attendee change detected:", payload.eventType);
           // Refetch to get updated data with groups
-          refetchAttendees()
-        }
+          refetchAttendees();
+        },
       )
       .subscribe((status: string) => {
-        console.log(`Real-time subscription status for ${channelName}:`, status)
-      })
+        console.log(
+          `Real-time subscription status for ${channelName}:`,
+          status,
+        );
+      });
 
     // Cleanup subscription on unmount or eventId change
     return () => {
-      console.log(`Unsubscribing from ${channelName}`)
-      supabase.removeChannel(channel)
-    }
-  }, [selectedEventId, refetchAttendees])
+      console.log(`Unsubscribing from ${channelName}`);
+      supabase.removeChannel(channel);
+    };
+  }, [selectedEventId, refetchAttendees]);
 
   // Filter attendees
   const filteredAttendees = attendees.filter((attendee) => {
     if (searchQuery) {
-      const query = searchQuery.toLowerCase()
+      const query = searchQuery.toLowerCase();
       if (
         !attendee.full_name.toLowerCase().includes(query) &&
         !attendee.email.toLowerCase().includes(query)
       ) {
-        return false
+        return false;
       }
     }
     if (selectedGroup && !attendee.groups.some((g) => g.id === selectedGroup)) {
-      return false
+      return false;
     }
     if (selectedRegType && attendee.badge_type !== selectedRegType) {
-      return false
+      return false;
     }
-    if (showCheckedIn === 'checked_in' && !attendee.checked_in_at) {
-      return false
+    if (showCheckedIn === "checked_in" && !attendee.checked_in_at) {
+      return false;
     }
-    if (showCheckedIn === 'not_checked_in' && attendee.checked_in_at) {
-      return false
+    if (showCheckedIn === "not_checked_in" && attendee.checked_in_at) {
+      return false;
     }
-    return true
-  })
+    return true;
+  });
 
   // Stats
-  const totalAttendees = attendees.length
-  const checkedInCount = attendees.filter((a) => a.checked_in_at).length
-  const notCheckedInCount = totalAttendees - checkedInCount
+  const totalAttendees = attendees.length;
+  const checkedInCount = attendees.filter((a) => a.checked_in_at).length;
+  const notCheckedInCount = totalAttendees - checkedInCount;
 
   const getBadgeTypeLabel = (type: string) => {
-    return BADGE_TYPES.find((t) => t.value === type)?.label || type
-  }
+    return BADGE_TYPES.find((t) => t.value === type)?.label || type;
+  };
 
   const getBadgeTypeColor = (type: string) => {
     const colors: Record<string, string> = {
-      attendee: 'bg-gray-500/20 text-gray-600',
-      vip: 'bg-purple-500/20 text-purple-600',
-      speaker: 'bg-blue-500/20 text-blue-600',
-      exhibitor: 'bg-green-500/20 text-green-600',
-      sponsor: 'bg-amber-500/20 text-amber-600',
-      staff: 'bg-cyan-500/20 text-cyan-600',
-      press: 'bg-pink-500/20 text-pink-600',
-    }
-    return colors[type] || 'bg-gray-500/20 text-gray-600'
-  }
+      attendee: "bg-gray-500/20 text-gray-600",
+      industry: "bg-indigo-500/20 text-indigo-600",
+      vip: "bg-purple-500/20 text-purple-600",
+      speaker: "bg-blue-500/20 text-blue-600",
+      exhibitor: "bg-green-500/20 text-green-600",
+      sponsor: "bg-amber-500/20 text-amber-600",
+      staff: "bg-cyan-500/20 text-cyan-600",
+      press: "bg-pink-500/20 text-pink-600",
+    };
+    return colors[type] || "bg-gray-500/20 text-gray-600";
+  };
 
   const handleDownloadTemplate = () => {
     const template = [
-      'full_name,email,badge_type,groups',
-      'John Doe,john@example.com,attendee,"VIP,Speakers"',
-      'Jane Smith,jane@example.com,vip,Sponsors',
-    ].join('\n')
-    downloadCSV(template, 'attendees_template.csv')
-  }
+      "first_name,last_name,email,credentials,specialty,institution,npi_number,badge_type,phone,street_address,street_address_2,city,state,postal_code,groups",
+      'John,Doe,john@example.com,MD,Dermatology,General Hospital,1234567890,attendee,555-0000,123 Main St,,Boston,MA,02101,"VIP,Speakers"',
+      "Jane,Smith,jane@example.com,PA-C,Aesthetics,Skin Care Center,0987654321,attendee,555-0001,456 Oak Ave,Suite 200,Chicago,IL,60601,Sponsors",
+    ].join("\n");
+    downloadCSV(template, "attendees_template.csv");
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !selectedEventId) return
+    const file = e.target.files?.[0];
+    if (!file || !selectedEventId) return;
 
-    setImporting(true)
-    setImportResult(null)
+    setImporting(true);
+    setImportResult(null);
 
     try {
-      const text = await file.text()
+      const text = await file.text();
       const rows = parseCSV<{
-        full_name: string
-        email: string
-        badge_type?: string
-        groups?: string
-      }>(text)
+        full_name: string;
+        email: string;
+        badge_type?: string;
+        groups?: string;
+      }>(text);
 
       if (rows.length === 0) {
-        setImportResult({ created: 0, errors: ['No valid rows found in CSV'] })
-        return
+        setImportResult({ created: 0, errors: ["No valid rows found in CSV"] });
+        return;
       }
 
-      const result = await bulkCreateAttendees(selectedEventId, rows, groups)
-      setImportResult(result)
+      const result = await bulkCreateAttendees(selectedEventId, rows, groups);
+      setImportResult(result);
 
       // Reload attendees if any were created
       if (result.created > 0) {
         const [attendeesData, groupsData] = await Promise.all([
           getAttendeesWithGroups(selectedEventId),
           getGroups(selectedEventId),
-        ])
-        setAttendees(attendeesData)
-        setGroups(groupsData)
+        ]);
+        setAttendees(attendeesData);
+        setGroups(groupsData);
       }
     } catch (error) {
-      console.error('Error importing CSV:', error)
-      setImportResult({ created: 0, errors: ['Failed to parse CSV file'] })
+      console.error("Error importing CSV:", error);
+      setImportResult({ created: 0, errors: ["Failed to parse CSV file"] });
     } finally {
-      setImporting(false)
+      setImporting(false);
       if (fileInputRef.current) {
-        fileInputRef.current.value = ''
+        fileInputRef.current.value = "";
       }
     }
-  }
+  };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this attendee?')) return
+    if (!confirm("Are you sure you want to delete this attendee?")) return;
 
-    setDeleting(id)
+    setDeleting(id);
     try {
-      await deleteAttendee(id)
-      setAttendees(attendees.filter((a) => a.id !== id))
+      await deleteAttendee(id);
+      setAttendees(attendees.filter((a) => a.id !== id));
     } catch (error) {
-      console.error('Error deleting attendee:', error)
+      console.error("Error deleting attendee:", error);
     } finally {
-      setDeleting(null)
-      setOpenMoreMenu(null)
+      setDeleting(null);
+      setOpenMoreMenu(null);
     }
-  }
+  };
 
   const handleCheckIn = async (id: string, isCheckedIn: boolean) => {
-    setCheckingIn(id)
+    setCheckingIn(id);
     try {
       if (isCheckedIn) {
-        await undoCheckIn(id)
+        await undoCheckIn(id);
         setAttendees(
-          attendees.map((a) => (a.id === id ? { ...a, checked_in_at: null } : a))
-        )
+          attendees.map((a) =>
+            a.id === id ? { ...a, checked_in_at: null } : a,
+          ),
+        );
       } else {
-        const updated = await checkInAttendee(id)
+        const updated = await checkInAttendee(id);
         setAttendees(
-          attendees.map((a) => (a.id === id ? { ...a, checked_in_at: updated.checked_in_at } : a))
-        )
+          attendees.map((a) =>
+            a.id === id ? { ...a, checked_in_at: updated.checked_in_at } : a,
+          ),
+        );
       }
     } catch (error) {
-      console.error('Error updating check-in:', error)
+      console.error("Error updating check-in:", error);
     } finally {
-      setCheckingIn(null)
+      setCheckingIn(null);
     }
-  }
+  };
 
   const handleRosterSearch = (query: string) => {
-    setRosterQuery(query)
-    setRosterError(null)
-    if (rosterDebounceRef.current) clearTimeout(rosterDebounceRef.current)
+    setRosterQuery(query);
+    setRosterError(null);
+    if (rosterDebounceRef.current) clearTimeout(rosterDebounceRef.current);
     if (!query.trim()) {
-      setRosterResults([])
-      return
+      setRosterResults([]);
+      return;
     }
     rosterDebounceRef.current = setTimeout(async () => {
-      setRosterSearching(true)
+      setRosterSearching(true);
       try {
-        const results = await searchAttendeeRoster(query)
-        setRosterResults(results as unknown as AttendeeWithGroups[])
+        const results = await searchAttendeeRoster(query);
+        setRosterResults(results as unknown as AttendeeWithGroups[]);
       } catch (err) {
-        console.error('Roster search error:', err)
-        setRosterError('Search failed. Please try again.')
-        setRosterResults([])
+        console.error("Roster search error:", err);
+        setRosterError("Search failed. Please try again.");
+        setRosterResults([]);
       } finally {
-        setRosterSearching(false)
+        setRosterSearching(false);
       }
-    }, 300)
-  }
+    }, 300);
+  };
 
   const handleRosterSelect = (person: AttendeeWithGroups) => {
     setAddForm({
       first_name: person.first_name,
       last_name: person.last_name,
       email: person.email,
-      phone: person.phone || '',
-      specialty: person.specialty || '',
-      institution: person.institution || '',
-      badge_type: person.badge_type || 'attendee',
-    })
-    setRosterQuery('')
-    setRosterResults([])
-  }
+      phone: person.phone || "",
+      specialty: person.specialty || "",
+      institution: person.institution || "",
+      badge_type: person.badge_type || "attendee",
+      credentials: person.credentials || "",
+      npi_number: person.npi_number || "",
+      title: person.title || "",
+      street_address: person.street_address || "",
+      street_address_2: person.street_address_2 || "",
+      city: person.city || "",
+      state: person.state || "",
+      postal_code: person.postal_code || "",
+    });
+    setRosterQuery("");
+    setRosterResults([]);
+  };
 
   const handleAddAttendee = async () => {
-    if (!selectedEventId || !addForm.first_name.trim() || !addForm.last_name.trim() || !addForm.email.trim()) return
-    setAddSubmitting(true)
+    if (
+      !selectedEventId ||
+      !addForm.first_name.trim() ||
+      !addForm.last_name.trim() ||
+      !addForm.email.trim()
+    )
+      return;
+    setAddSubmitting(true);
     try {
       await createAttendee({
         event_id: selectedEventId,
-        organization_id: selectedEvent?.organization_id || '',
-        profile_id: null,
+        organization_id: selectedEvent?.organization_id || "",
+        profile_id: null, // auto-linked by createAttendee via email lookup
         first_name: addForm.first_name.trim(),
         last_name: addForm.last_name.trim(),
         email: addForm.email.trim(),
         phone: addForm.phone.trim() || null,
         specialty: addForm.specialty.trim() || null,
         institution: addForm.institution.trim() || null,
-        title: null,
-        badge_type: addForm.badge_type || 'attendee',
+        title: addForm.title.trim() || null,
+        credentials: addForm.credentials.trim() || null,
+        npi_number: addForm.npi_number.trim() || null,
+        street_address: addForm.street_address.trim() || null,
+        street_address_2: addForm.street_address_2.trim() || null,
+        city: addForm.city.trim() || null,
+        state: addForm.state.trim() || null,
+        postal_code: addForm.postal_code.trim() || null,
+        badge_type: addForm.badge_type || "attendee",
         badge_generated: false,
         badge_printed: false,
         qr_data: null,
@@ -359,40 +475,81 @@ export default function AttendeesPage() {
         checked_in_at: null,
         checked_in_by: null,
         updated_at: new Date().toISOString(),
-      })
-      setShowAddModal(false)
-      setAddForm({ first_name: '', last_name: '', email: '', phone: '', specialty: '', institution: '', badge_type: 'attendee' })
-      setRosterQuery('')
-      setRosterResults([])
-      await refetchAttendees()
+      });
+      setShowAddModal(false);
+      setAddForm({
+        first_name: "",
+        last_name: "",
+        email: "",
+        phone: "",
+        specialty: "",
+        institution: "",
+        badge_type: "attendee",
+        credentials: "",
+        npi_number: "",
+        title: "",
+        street_address: "",
+        street_address_2: "",
+        city: "",
+        state: "",
+        postal_code: "",
+      });
+      setRosterQuery("");
+      setRosterResults([]);
+      await refetchAttendees();
     } catch (error) {
-      console.error('Error adding attendee:', error)
-      alert('Failed to add attendee. Please try again.')
+      console.error("Error adding attendee:", error);
+      alert("Failed to add attendee. Please try again.");
     } finally {
-      setAddSubmitting(false)
+      setAddSubmitting(false);
     }
-  }
+  };
 
   const handleExport = () => {
     const csvContent = [
-      ['Name', 'Email', 'Badge Type', 'Groups', 'Checked In'],
+      [
+        "Name",
+        "Credentials",
+        "Email",
+        "Phone",
+        "Specialty",
+        "Institution",
+        "NPI",
+        "Badge Type",
+        "Groups",
+        "City",
+        "State",
+        "Checked In",
+      ],
       ...filteredAttendees.map((a) => [
         a.full_name,
+        a.credentials || "",
         a.email,
+        a.phone || "",
+        a.specialty || "",
+        a.institution || "",
+        a.npi_number || "",
         a.badge_type,
-        a.groups.map((g) => g.name).join(', '),
-        a.checked_in_at ? format(parseISO(a.checked_in_at), 'yyyy-MM-dd HH:mm') : '',
+        a.groups.map((g) => g.name).join(", "),
+        a.city || "",
+        a.state || "",
+        a.checked_in_at
+          ? format(parseISO(a.checked_in_at), "yyyy-MM-dd HH:mm")
+          : "",
       ]),
     ]
-      .map((row) => row.map((cell) => `"${cell}"`).join(','))
-      .join('\n')
+      .map((row) => row.map((cell) => `"${cell}"`).join(","))
+      .join("\n");
 
-    downloadCSV(csvContent, 'attendees.csv')
-  }
+    downloadCSV(csvContent, "attendees.csv");
+  };
 
   return (
     <>
-      <Header title="Attendees" subtitle="Manage event attendees and registrations" />
+      <Header
+        title="Attendees"
+        subtitle="Manage event attendees and registrations"
+      />
 
       <div className="p-6 space-y-4">
         {loading ? (
@@ -402,7 +559,10 @@ export default function AttendeesPage() {
         ) : attendees.length === 0 && selectedEventId ? (
           <Card>
             <CardBody className="text-center py-12">
-              <Users size={48} className="mx-auto text-[var(--foreground-subtle)] mb-4" />
+              <Users
+                size={48}
+                className="mx-auto text-[var(--foreground-subtle)] mb-4"
+              />
               <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">
                 No attendees yet
               </h3>
@@ -417,12 +577,54 @@ export default function AttendeesPage() {
                 >
                   Import from CSV
                 </Button>
-                <Button icon={<Plus size={18} />} onClick={() => setShowAddModal(true)}>Add Attendee</Button>
+                <Button
+                  icon={<Plus size={18} />}
+                  onClick={() => setShowAddModal(true)}
+                >
+                  Add Attendee
+                </Button>
               </div>
             </CardBody>
           </Card>
         ) : (
           <>
+            {/* Admins Card */}
+            {admins.length > 0 && (
+              <Card>
+                <CardBody className="flex items-center gap-4">
+                  <div className="p-3 rounded-xl bg-violet-500/10">
+                    <Users size={24} className="text-violet-500" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-[var(--foreground-muted)] mb-1">
+                      Admins
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      {admins.map((admin) => (
+                        <div key={admin.id} className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-violet-500/20 flex items-center justify-center text-xs font-bold text-violet-600">
+                            {(admin.full_name ||
+                              admin.email ||
+                              "?")[0].toUpperCase()}
+                          </div>
+                          <div className="text-sm">
+                            <span className="font-medium text-[var(--foreground)]">
+                              {admin.full_name || "Unknown"}
+                            </span>
+                            {admin.email && (
+                              <span className="text-[var(--foreground-muted)] ml-1">
+                                ({admin.email})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            )}
+
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card>
@@ -431,8 +633,12 @@ export default function AttendeesPage() {
                     <Users size={24} className="text-blue-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-[var(--foreground-muted)]">Total Attendees</p>
-                    <p className="text-2xl font-bold text-[var(--foreground)]">{totalAttendees}</p>
+                    <p className="text-sm text-[var(--foreground-muted)]">
+                      Total Attendees
+                    </p>
+                    <p className="text-2xl font-bold text-[var(--foreground)]">
+                      {totalAttendees}
+                    </p>
                   </div>
                 </CardBody>
               </Card>
@@ -442,11 +648,17 @@ export default function AttendeesPage() {
                     <UserCheck size={24} className="text-green-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-[var(--foreground-muted)]">Checked In</p>
+                    <p className="text-sm text-[var(--foreground-muted)]">
+                      Checked In
+                    </p>
                     <p className="text-2xl font-bold text-[var(--foreground)]">
                       {checkedInCount}
                       <span className="text-sm font-normal text-[var(--foreground-muted)] ml-2">
-                        ({totalAttendees > 0 ? Math.round((checkedInCount / totalAttendees) * 100) : 0}%)
+                        (
+                        {totalAttendees > 0
+                          ? Math.round((checkedInCount / totalAttendees) * 100)
+                          : 0}
+                        %)
                       </span>
                     </p>
                   </div>
@@ -458,7 +670,9 @@ export default function AttendeesPage() {
                     <UserX size={24} className="text-amber-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-[var(--foreground-muted)]">Not Checked In</p>
+                    <p className="text-sm text-[var(--foreground-muted)]">
+                      Not Checked In
+                    </p>
                     <p className="text-2xl font-bold text-[var(--foreground)]">
                       {notCheckedInCount}
                     </p>
@@ -538,31 +752,31 @@ export default function AttendeesPage() {
                 {/* Check-in Status Filter */}
                 <div className="flex rounded-lg overflow-hidden border border-[var(--input-border)]">
                   <button
-                    onClick={() => setShowCheckedIn('all')}
+                    onClick={() => setShowCheckedIn("all")}
                     className={`px-3 py-2 text-sm ${
-                      showCheckedIn === 'all'
-                        ? 'bg-[var(--accent-primary)] text-white'
-                        : 'bg-[var(--input-bg)] text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]'
+                      showCheckedIn === "all"
+                        ? "bg-[var(--accent-primary)] text-white"
+                        : "bg-[var(--input-bg)] text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]"
                     }`}
                   >
                     All
                   </button>
                   <button
-                    onClick={() => setShowCheckedIn('checked_in')}
+                    onClick={() => setShowCheckedIn("checked_in")}
                     className={`px-3 py-2 text-sm border-l border-[var(--input-border)] ${
-                      showCheckedIn === 'checked_in'
-                        ? 'bg-green-500 text-white'
-                        : 'bg-[var(--input-bg)] text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]'
+                      showCheckedIn === "checked_in"
+                        ? "bg-green-500 text-white"
+                        : "bg-[var(--input-bg)] text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]"
                     }`}
                   >
                     Checked In
                   </button>
                   <button
-                    onClick={() => setShowCheckedIn('not_checked_in')}
+                    onClick={() => setShowCheckedIn("not_checked_in")}
                     className={`px-3 py-2 text-sm border-l border-[var(--input-border)] ${
-                      showCheckedIn === 'not_checked_in'
-                        ? 'bg-amber-500 text-white'
-                        : 'bg-[var(--input-bg)] text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]'
+                      showCheckedIn === "not_checked_in"
+                        ? "bg-amber-500 text-white"
+                        : "bg-[var(--input-bg)] text-[var(--foreground-muted)] hover:bg-[var(--background-tertiary)]"
                     }`}
                   >
                     Not Checked In
@@ -571,6 +785,51 @@ export default function AttendeesPage() {
               </div>
 
               <div className="flex items-center gap-2">
+                <div className="relative" ref={columnPickerRef}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<SlidersHorizontal size={16} />}
+                    onClick={() => setShowColumnPicker(!showColumnPicker)}
+                  >
+                    Columns
+                  </Button>
+                  {showColumnPicker && (
+                    <div className="absolute right-0 top-full mt-1 w-56 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg shadow-xl z-50 py-2">
+                      <p className="px-3 py-1 text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">
+                        Toggle Columns
+                      </p>
+                      {AVAILABLE_COLUMNS.map((col) => (
+                        <button
+                          key={col.key}
+                          onClick={() => toggleColumn(col.key)}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--foreground)] hover:bg-[var(--background-tertiary)] transition-colors"
+                        >
+                          {visibleColumns.has(col.key) ? (
+                            <Eye
+                              size={14}
+                              className="text-[var(--accent-primary)]"
+                            />
+                          ) : (
+                            <EyeOff
+                              size={14}
+                              className="text-[var(--foreground-muted)]"
+                            />
+                          )}
+                          <span
+                            className={
+                              visibleColumns.has(col.key)
+                                ? ""
+                                : "text-[var(--foreground-muted)]"
+                            }
+                          >
+                            {col.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -587,7 +846,11 @@ export default function AttendeesPage() {
                 >
                   Import
                 </Button>
-                <Button size="sm" icon={<Plus size={16} />} onClick={() => setShowAddModal(true)}>
+                <Button
+                  size="sm"
+                  icon={<Plus size={16} />}
+                  onClick={() => setShowAddModal(true)}
+                >
                   Add Attendee
                 </Button>
               </div>
@@ -602,15 +865,56 @@ export default function AttendeesPage() {
                       <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
                         Attendee
                       </th>
-                      <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
-                        Type
-                      </th>
-                      <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
-                        Groups
-                      </th>
-                      <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
-                        Status
-                      </th>
+                      {visibleColumns.has("type") && (
+                        <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
+                          Type
+                        </th>
+                      )}
+                      {visibleColumns.has("institution") && (
+                        <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
+                          Institution
+                        </th>
+                      )}
+                      {visibleColumns.has("specialty") && (
+                        <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
+                          Specialty
+                        </th>
+                      )}
+                      {visibleColumns.has("title") && (
+                        <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
+                          Title
+                        </th>
+                      )}
+                      {visibleColumns.has("credentials") && (
+                        <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
+                          Credentials
+                        </th>
+                      )}
+                      {visibleColumns.has("phone") && (
+                        <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
+                          Phone
+                        </th>
+                      )}
+                      {visibleColumns.has("city_state") && (
+                        <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
+                          City / State
+                        </th>
+                      )}
+                      {visibleColumns.has("npi") && (
+                        <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
+                          NPI
+                        </th>
+                      )}
+                      {visibleColumns.has("groups") && (
+                        <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
+                          Groups
+                        </th>
+                      )}
+                      {visibleColumns.has("status") && (
+                        <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
+                          Status
+                        </th>
+                      )}
                       <th className="text-right p-4 text-sm font-medium text-[var(--foreground-muted)]">
                         Actions
                       </th>
@@ -619,7 +923,10 @@ export default function AttendeesPage() {
                   <tbody>
                     {filteredAttendees.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="p-8 text-center text-[var(--foreground-muted)]">
+                        <td
+                          colSpan={2 + visibleColumns.size}
+                          className="p-8 text-center text-[var(--foreground-muted)]"
+                        >
                           No attendees found matching your criteria.
                         </td>
                       </tr>
@@ -633,6 +940,11 @@ export default function AttendeesPage() {
                             <div>
                               <p className="font-medium text-[var(--foreground)]">
                                 {attendee.full_name}
+                                {attendee.credentials && (
+                                  <span className="text-[var(--foreground-muted)] font-normal">
+                                    , {attendee.credentials}
+                                  </span>
+                                )}
                               </p>
                               <p className="text-sm text-[var(--foreground-muted)] flex items-center gap-1">
                                 <Mail size={12} />
@@ -640,43 +952,123 @@ export default function AttendeesPage() {
                               </p>
                             </div>
                           </td>
-                          <td className="p-4">
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-medium ${getBadgeTypeColor(
-                                attendee.badge_type
-                              )}`}
-                            >
-                              {getBadgeTypeLabel(attendee.badge_type)}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <GroupAssignment
-                              entityType="attendee"
-                              entityId={attendee.id}
-                              eventId={selectedEventId}
-                              availableGroups={groups}
-                              onGroupsChange={() => refetchAttendees()}
-                              compact={true}
-                            />
-                          </td>
-                          <td className="p-4">
-                            {attendee.checked_in_at ? (
-                              <div className="flex items-center gap-2 text-green-500">
-                                <CheckCircle2 size={16} />
-                                <div>
-                                  <p className="text-sm font-medium">Checked In</p>
-                                  <p className="text-xs text-[var(--foreground-muted)]">
-                                    {format(parseISO(attendee.checked_in_at), 'MMM d, h:mm a')}
-                                  </p>
+                          {visibleColumns.has("type") && (
+                            <td className="p-4">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-medium ${getBadgeTypeColor(
+                                  attendee.badge_type,
+                                )}`}
+                              >
+                                {getBadgeTypeLabel(attendee.badge_type)}
+                              </span>
+                            </td>
+                          )}
+                          {visibleColumns.has("institution") && (
+                            <td className="p-4 text-sm text-[var(--foreground)]">
+                              {attendee.institution || (
+                                <span className="text-[var(--foreground-muted)]">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.has("specialty") && (
+                            <td className="p-4 text-sm text-[var(--foreground)]">
+                              {attendee.specialty || (
+                                <span className="text-[var(--foreground-muted)]">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.has("title") && (
+                            <td className="p-4 text-sm text-[var(--foreground)]">
+                              {attendee.title || (
+                                <span className="text-[var(--foreground-muted)]">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.has("credentials") && (
+                            <td className="p-4 text-sm text-[var(--foreground)]">
+                              {attendee.credentials || (
+                                <span className="text-[var(--foreground-muted)]">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.has("phone") && (
+                            <td className="p-4 text-sm text-[var(--foreground)]">
+                              {attendee.phone || (
+                                <span className="text-[var(--foreground-muted)]">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.has("city_state") && (
+                            <td className="p-4 text-sm text-[var(--foreground)]">
+                              {attendee.city || attendee.state ? (
+                                [attendee.city, attendee.state]
+                                  .filter(Boolean)
+                                  .join(", ")
+                              ) : (
+                                <span className="text-[var(--foreground-muted)]">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.has("npi") && (
+                            <td className="p-4 text-sm text-[var(--foreground)]">
+                              {attendee.npi_number || (
+                                <span className="text-[var(--foreground-muted)]">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.has("groups") && (
+                            <td className="p-4">
+                              <GroupAssignment
+                                entityType="attendee"
+                                entityId={attendee.id}
+                                eventId={selectedEventId}
+                                availableGroups={groups}
+                                onGroupsChange={() => refetchAttendees()}
+                                compact={true}
+                              />
+                            </td>
+                          )}
+                          {visibleColumns.has("status") && (
+                            <td className="p-4">
+                              {attendee.checked_in_at ? (
+                                <div className="flex items-center gap-2 text-green-500">
+                                  <CheckCircle2 size={16} />
+                                  <div>
+                                    <p className="text-sm font-medium">
+                                      Checked In
+                                    </p>
+                                    <p className="text-xs text-[var(--foreground-muted)]">
+                                      {format(
+                                        parseISO(attendee.checked_in_at),
+                                        "MMM d, h:mm a",
+                                      )}
+                                    </p>
+                                  </div>
                                 </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 text-[var(--foreground-muted)]">
-                                <XCircle size={16} />
-                                <span className="text-sm">Not checked in</span>
-                              </div>
-                            )}
-                          </td>
+                              ) : (
+                                <div className="flex items-center gap-2 text-[var(--foreground-muted)]">
+                                  <XCircle size={16} />
+                                  <span className="text-sm">
+                                    Not checked in
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+                          )}
                           <td className="p-4">
                             <div className="flex items-center justify-end gap-2">
                               <Button
@@ -690,20 +1082,23 @@ export default function AttendeesPage() {
                                   )
                                 }
                                 onClick={() =>
-                                  handleCheckIn(attendee.id, !!attendee.checked_in_at)
+                                  handleCheckIn(
+                                    attendee.id,
+                                    !!attendee.checked_in_at,
+                                  )
                                 }
                                 disabled={checkingIn === attendee.id}
                                 className={
                                   attendee.checked_in_at
-                                    ? 'text-amber-500'
-                                    : 'text-green-500'
+                                    ? "text-amber-500"
+                                    : "text-green-500"
                                 }
                               >
                                 {checkingIn === attendee.id
-                                  ? '...'
+                                  ? "..."
                                   : attendee.checked_in_at
-                                    ? 'Undo'
-                                    : 'Check In'}
+                                    ? "Undo"
+                                    : "Check In"}
                               </Button>
 
                               {/* More Menu */}
@@ -713,13 +1108,15 @@ export default function AttendeesPage() {
                                 icon={<MoreVertical size={14} />}
                                 onClick={(e) => {
                                   if (openMoreMenu === attendee.id) {
-                                    setOpenMoreMenu(null)
-                                    setOpenMoreMenuRect(null)
+                                    setOpenMoreMenu(null);
+                                    setOpenMoreMenuRect(null);
                                   } else {
-                                    setOpenMoreMenu(attendee.id)
+                                    setOpenMoreMenu(attendee.id);
                                     setOpenMoreMenuRect(
-                                      (e.currentTarget as HTMLElement).getBoundingClientRect()
-                                    )
+                                      (
+                                        e.currentTarget as HTMLElement
+                                      ).getBoundingClientRect(),
+                                    );
                                   }
                                 }}
                               />
@@ -743,23 +1140,34 @@ export default function AttendeesPage() {
 
       {/* Add Attendee Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-4">
+          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-md mx-4 my-auto max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
-              <h3 className="font-semibold text-[var(--foreground)]">Add Attendee</h3>
+              <h3 className="font-semibold text-[var(--foreground)]">
+                Add Attendee
+              </h3>
               <button
-                onClick={() => { setShowAddModal(false); setRosterQuery(''); setRosterResults([]) }}
+                onClick={() => {
+                  setShowAddModal(false);
+                  setRosterQuery("");
+                  setRosterResults([]);
+                }}
                 className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)]"
               >
                 <X size={20} />
               </button>
             </div>
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-3 overflow-y-auto flex-1">
               {/* Roster search */}
               <div className="relative">
-                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Search existing attendees</label>
+                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                  Search existing attendees
+                </label>
                 <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--foreground-subtle)]" />
+                  <Search
+                    size={14}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--foreground-subtle)]"
+                  />
                   <input
                     type="text"
                     value={rosterQuery}
@@ -786,14 +1194,17 @@ export default function AttendeesPage() {
                           {person.first_name} {person.last_name}
                         </p>
                         <p className="text-xs text-[var(--foreground-muted)]">
-                          {person.email}{person.specialty ? ` · ${person.specialty}` : ''}
+                          {person.email}
+                          {person.specialty ? ` · ${person.specialty}` : ""}
                         </p>
                       </button>
                     ))}
                   </div>
                 )}
                 {rosterError && (
-                  <p className="mt-1 text-xs text-[var(--accent-danger)]">{rosterError}</p>
+                  <p className="mt-1 text-xs text-[var(--accent-danger)]">
+                    {rosterError}
+                  </p>
                 )}
               </div>
 
@@ -805,90 +1216,250 @@ export default function AttendeesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">First Name *</label>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                    First Name *
+                  </label>
                   <input
                     type="text"
                     value={addForm.first_name}
-                    onChange={(e) => setAddForm({ ...addForm, first_name: e.target.value })}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, first_name: e.target.value })
+                    }
                     className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
                     placeholder="First name"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Last Name *</label>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                    Last Name *
+                  </label>
                   <input
                     type="text"
                     value={addForm.last_name}
-                    onChange={(e) => setAddForm({ ...addForm, last_name: e.target.value })}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, last_name: e.target.value })
+                    }
                     className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
                     placeholder="Last name"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Email *</label>
+                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                  Email *
+                </label>
                 <input
                   type="email"
                   value={addForm.email}
-                  onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                  onChange={(e) =>
+                    setAddForm({ ...addForm, email: e.target.value })
+                  }
                   className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
                   placeholder="email@example.com"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Phone</label>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                    Phone
+                  </label>
                   <input
                     type="text"
                     value={addForm.phone}
-                    onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, phone: e.target.value })
+                    }
                     className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
                     placeholder="(555) 000-0000"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Badge Type</label>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                    Badge Type
+                  </label>
                   <select
                     value={addForm.badge_type}
-                    onChange={(e) => setAddForm({ ...addForm, badge_type: e.target.value })}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, badge_type: e.target.value })
+                    }
                     className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
                   >
                     {BADGE_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
                     ))}
                   </select>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Specialty</label>
-                <input
-                  type="text"
-                  value={addForm.specialty}
-                  onChange={(e) => setAddForm({ ...addForm, specialty: e.target.value })}
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
-                  placeholder="e.g. Dermatology"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                    Credentials
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.credentials}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, credentials: e.target.value })
+                    }
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                    placeholder="e.g. PA-C, MD, NP"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.title}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, title: e.target.value })
+                    }
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                    placeholder="Job title"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                    Specialty
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.specialty}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, specialty: e.target.value })
+                    }
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                    placeholder="e.g. Dermatology"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                    NPI Number
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.npi_number}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, npi_number: e.target.value })
+                    }
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                    placeholder="10-digit NPI"
+                  />
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Institution</label>
+                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                  Institution / Practice
+                </label>
                 <input
                   type="text"
                   value={addForm.institution}
-                  onChange={(e) => setAddForm({ ...addForm, institution: e.target.value })}
+                  onChange={(e) =>
+                    setAddForm({ ...addForm, institution: e.target.value })
+                  }
                   className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
-                  placeholder="Hospital / University"
+                  placeholder="Hospital / Practice / Company"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                  Street Address
+                </label>
+                <input
+                  type="text"
+                  value={addForm.street_address}
+                  onChange={(e) =>
+                    setAddForm({ ...addForm, street_address: e.target.value })
+                  }
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                  placeholder="Street address"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                  Address Line 2
+                </label>
+                <input
+                  type="text"
+                  value={addForm.street_address_2}
+                  onChange={(e) =>
+                    setAddForm({ ...addForm, street_address_2: e.target.value })
+                  }
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                  placeholder="Suite, unit, etc."
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.city}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, city: e.target.value })
+                    }
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                    placeholder="City"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.state}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, state: e.target.value })
+                    }
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                    placeholder="State"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+                    Zip
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.postal_code}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, postal_code: e.target.value })
+                    }
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
+                    placeholder="Zip"
+                  />
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-[var(--card-border)]">
-              <Button variant="ghost" onClick={() => { setShowAddModal(false); setRosterQuery(''); setRosterResults([]) }}>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowAddModal(false);
+                  setRosterQuery("");
+                  setRosterResults([]);
+                }}
+              >
                 Cancel
               </Button>
               <Button
                 onClick={handleAddAttendee}
-                disabled={addSubmitting || !addForm.first_name.trim() || !addForm.last_name.trim() || !addForm.email.trim()}
+                disabled={
+                  addSubmitting ||
+                  !addForm.first_name.trim() ||
+                  !addForm.last_name.trim() ||
+                  !addForm.email.trim()
+                }
               >
-                {addSubmitting ? 'Adding...' : 'Add Attendee'}
+                {addSubmitting ? "Adding..." : "Add Attendee"}
               </Button>
             </div>
           </div>
@@ -900,11 +1471,13 @@ export default function AttendeesPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-md mx-4">
             <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
-              <h3 className="font-semibold text-[var(--foreground)]">Import Attendees from CSV</h3>
+              <h3 className="font-semibold text-[var(--foreground)]">
+                Import Attendees from CSV
+              </h3>
               <button
                 onClick={() => {
-                  setShowImportModal(false)
-                  setImportResult(null)
+                  setShowImportModal(false);
+                  setImportResult(null);
                 }}
                 className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)]"
               >
@@ -915,25 +1488,75 @@ export default function AttendeesPage() {
             <div className="p-4 space-y-4">
               <div>
                 <p className="text-sm text-[var(--foreground-muted)] mb-3">
-                  Upload a CSV file with attendee information. Groups will be created automatically
-                  if they don't exist.
+                  Upload a CSV file with attendee information. Groups will be
+                  created automatically if they don't exist.
                 </p>
                 <div className="bg-[var(--background-tertiary)] rounded-lg p-3 text-sm">
-                  <p className="font-medium text-[var(--foreground)] mb-1">CSV Columns:</p>
+                  <p className="font-medium text-[var(--foreground)] mb-1">
+                    CSV Columns:
+                  </p>
                   <ul className="text-[var(--foreground-muted)] space-y-0.5 text-xs">
                     <li>
-                      <code className="bg-[var(--input-bg)] px-1 rounded">full_name</code> - Required
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        first_name
+                      </code>
+                      ,{" "}
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        last_name
+                      </code>
+                      ,{" "}
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        email
+                      </code>{" "}
+                      - Required
                     </li>
                     <li>
-                      <code className="bg-[var(--input-bg)] px-1 rounded">email</code> - Required
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        credentials
+                      </code>
+                      ,{" "}
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        specialty
+                      </code>
+                      ,{" "}
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        institution
+                      </code>
+                      ,{" "}
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        npi_number
+                      </code>{" "}
+                      - Optional
                     </li>
                     <li>
-                      <code className="bg-[var(--input-bg)] px-1 rounded">badge_type</code> -
-                      Optional (attendee, vip, speaker, etc.)
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        badge_type
+                      </code>{" "}
+                      - Optional (attendee, industry, vip, speaker, etc.)
                     </li>
                     <li>
-                      <code className="bg-[var(--input-bg)] px-1 rounded">groups</code> - Optional
-                      (comma-separated group names)
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        street_address
+                      </code>
+                      ,{" "}
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        city
+                      </code>
+                      ,{" "}
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        state
+                      </code>
+                      ,{" "}
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        postal_code
+                      </code>{" "}
+                      - Optional
+                    </li>
+                    <li>
+                      <code className="bg-[var(--input-bg)] px-1 rounded">
+                        groups
+                      </code>{" "}
+                      - Optional (comma-separated group names)
                     </li>
                   </ul>
                 </div>
@@ -957,15 +1580,23 @@ export default function AttendeesPage() {
                   className="hidden"
                   id="csv-upload-attendees"
                 />
-                <label htmlFor="csv-upload-attendees" className="cursor-pointer">
+                <label
+                  htmlFor="csv-upload-attendees"
+                  className="cursor-pointer"
+                >
                   {importing ? (
                     <div className="flex flex-col items-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)] mb-2" />
-                      <span className="text-sm text-[var(--foreground-muted)]">Importing...</span>
+                      <span className="text-sm text-[var(--foreground-muted)]">
+                        Importing...
+                      </span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center">
-                      <Upload size={32} className="text-[var(--foreground-subtle)] mb-2" />
+                      <Upload
+                        size={32}
+                        className="text-[var(--foreground-subtle)] mb-2"
+                      />
                       <span className="text-sm text-[var(--foreground)]">
                         Click to select CSV file
                       </span>
@@ -980,16 +1611,21 @@ export default function AttendeesPage() {
               {importResult && (
                 <div
                   className={`p-3 rounded-lg ${
-                    importResult.errors.length > 0 ? 'bg-yellow-500/10' : 'bg-green-500/10'
+                    importResult.errors.length > 0
+                      ? "bg-yellow-500/10"
+                      : "bg-green-500/10"
                   }`}
                 >
                   <p className="text-sm font-medium text-[var(--foreground)]">
-                    {importResult.created} attendee{importResult.created !== 1 ? 's' : ''} imported
+                    {importResult.created} attendee
+                    {importResult.created !== 1 ? "s" : ""} imported
                     successfully
                   </p>
                   {importResult.errors.length > 0 && (
                     <div className="mt-2">
-                      <p className="text-xs text-[var(--foreground-muted)] mb-1">Warnings:</p>
+                      <p className="text-xs text-[var(--foreground-muted)] mb-1">
+                        Warnings:
+                      </p>
                       <ul className="text-xs text-[var(--accent-warning)] space-y-0.5 max-h-24 overflow-y-auto">
                         {importResult.errors.map((error, i) => (
                           <li key={i}>{error}</li>
@@ -1005,8 +1641,8 @@ export default function AttendeesPage() {
               <Button
                 variant="ghost"
                 onClick={() => {
-                  setShowImportModal(false)
-                  setImportResult(null)
+                  setShowImportModal(false);
+                  setImportResult(null);
                 }}
               >
                 Close
@@ -1016,12 +1652,16 @@ export default function AttendeesPage() {
         </div>
       )}
       {/* Attendee row ⋮ menu — rendered via portal so it's never clipped by overflow-x-auto */}
-      {openMoreMenu && openMoreMenuRect &&
+      {openMoreMenu &&
+        openMoreMenuRect &&
         createPortal(
           <>
             <div
               className="fixed inset-0 z-40"
-              onClick={() => { setOpenMoreMenu(null); setOpenMoreMenuRect(null) }}
+              onClick={() => {
+                setOpenMoreMenu(null);
+                setOpenMoreMenuRect(null);
+              }}
             />
             <div
               className="fixed z-50 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg shadow-lg py-1 min-w-[140px]"
@@ -1032,20 +1672,20 @@ export default function AttendeesPage() {
             >
               <button
                 onClick={() => {
-                  handleDelete(openMoreMenu)
-                  setOpenMoreMenu(null)
-                  setOpenMoreMenuRect(null)
+                  handleDelete(openMoreMenu);
+                  setOpenMoreMenu(null);
+                  setOpenMoreMenuRect(null);
                 }}
                 disabled={deleting === openMoreMenu}
                 className="w-full px-3 py-2 text-left text-sm text-[var(--accent-danger)] hover:bg-[var(--background-tertiary)] flex items-center gap-2"
               >
                 <Trash2 size={14} />
-                {deleting === openMoreMenu ? 'Deleting...' : 'Delete'}
+                {deleting === openMoreMenu ? "Deleting..." : "Delete"}
               </button>
             </div>
           </>,
-          document.body
+          document.body,
         )}
     </>
-  )
+  );
 }
