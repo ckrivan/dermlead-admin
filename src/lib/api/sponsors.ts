@@ -3,6 +3,7 @@ import type { Sponsor } from '@/types/database'
 import { normalizeSponsorRow, SponsorCSVRow } from '@/lib/utils/csv'
 
 export const SPONSOR_TIERS = [
+  { value: 'title_sponsor', label: 'Title Sponsor', color: '#1a1a2e' },
   { value: 'presidents_circle', label: "President's Circle", color: '#8b0000' },
   { value: 'platinum', label: 'Platinum', color: '#e5e4e2' },
   { value: 'gold', label: 'Gold', color: '#ffd700' },

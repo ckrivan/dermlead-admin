@@ -33,6 +33,7 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
     email: '',
     linkedin_url: '',
     website_url: '',
+    role: 'faculty',
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -52,6 +53,7 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
             email: data.email || '',
             linkedin_url: data.linkedin_url || '',
             website_url: data.website_url || '',
+            role: data.role || 'faculty',
           })
           if (data.photo_url) {
             setPhotoPreview(data.photo_url)
@@ -67,7 +69,7 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
   }, [id])
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
@@ -120,6 +122,7 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
         linkedin_url: formData.linkedin_url || null,
         website_url: formData.website_url || null,
         photo_url: photoUrl,
+        role: formData.role || 'faculty',
       })
 
       router.push('/speakers')
@@ -252,7 +255,7 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
             <div className="lg:col-span-2">
               <Card>
                 <CardBody className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Input
                       label="Full Name *"
                       name="full_name"
@@ -268,6 +271,21 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
                       onChange={handleChange}
                       placeholder="MD, PhD, FAAD"
                     />
+                    <div className="space-y-1">
+                      <label className="block text-sm font-medium text-[var(--foreground)]">
+                        Role
+                      </label>
+                      <select
+                        name="role"
+                        value={formData.role}
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)]"
+                      >
+                        <option value="faculty">Faculty</option>
+                        <option value="leader">Leader</option>
+                        <option value="guest">Guest</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

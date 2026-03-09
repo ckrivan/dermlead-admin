@@ -40,10 +40,7 @@ export async function updateBrandingSettings(
 
   const { data, error } = await supabase
     .from('events')
-    .update({
-      ...settings,
-      updated_at: new Date().toISOString(),
-    })
+    .update(settings)
     .eq('id', eventId)
     .select()
     .single()

@@ -38,6 +38,7 @@ export default function SpeakersPage() {
     message: '',
   })
   const [messageResult, setMessageResult] = useState<{ sent: number; errors: string[] } | null>(null)
+  const [roleFilter, setRoleFilter] = useState<string>('all')
 
   useEffect(() => {
     let cancelled = false
@@ -256,6 +257,36 @@ export default function SpeakersPage() {
           </div>
         </div>
 
+        {/* Role Filter Tabs */}
+        {speakers.length > 0 && (
+          <div className="flex items-center gap-1 bg-[var(--background-secondary)] rounded-lg p-1 w-fit">
+            {[
+              { value: 'all', label: 'All' },
+              { value: 'faculty', label: 'Faculty' },
+              { value: 'leader', label: 'Leaders' },
+              { value: 'guest', label: 'Guests' },
+            ].map((tab) => {
+              const count = tab.value === 'all'
+                ? speakers.length
+                : speakers.filter((s) => (s.role || 'faculty') === tab.value).length
+              if (tab.value !== 'all' && count === 0) return null
+              return (
+                <button
+                  key={tab.value}
+                  onClick={() => setRoleFilter(tab.value)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    roleFilter === tab.value
+                      ? 'bg-[var(--card-bg)] text-[var(--foreground)] shadow-sm'
+                      : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
+                  }`}
+                >
+                  {tab.label} ({count})
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* Speakers Grid */}
         {error ? (
           <Card>
@@ -318,7 +349,9 @@ export default function SpeakersPage() {
                 </button>
               </div>
             )}
-            {speakers.map((speaker) => (
+            {speakers
+              .filter((s) => roleFilter === 'all' || (s.role || 'faculty') === roleFilter)
+              .map((speaker) => (
               <Card
                 key={speaker.id}
                 hover
@@ -362,11 +395,22 @@ export default function SpeakersPage() {
                       <h3 className="font-semibold text-[var(--foreground)] truncate">
                         {speaker.full_name}
                       </h3>
-                      {speaker.credentials && (
-                        <p className="text-sm text-[var(--accent-primary)]">
-                          {speaker.credentials}
-                        </p>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {speaker.credentials && (
+                          <span className="text-sm text-[var(--accent-primary)]">
+                            {speaker.credentials}
+                          </span>
+                        )}
+                        {speaker.role && speaker.role !== 'faculty' && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                            speaker.role === 'leader'
+                              ? 'bg-purple-500/15 text-purple-400'
+                              : 'bg-blue-500/15 text-blue-400'
+                          }`}>
+                            {speaker.role === 'leader' ? 'Leader' : 'Guest'}
+                          </span>
+                        )}
+                      </div>
                       {speaker.institution && (
                         <div className="flex items-center gap-1 mt-1 text-sm text-[var(--foreground-muted)]">
                           <Building size={14} />

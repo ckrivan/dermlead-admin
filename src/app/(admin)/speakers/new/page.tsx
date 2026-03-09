@@ -31,6 +31,7 @@ function NewSpeakerForm() {
     email: '',
     linkedin_url: '',
     website_url: '',
+    role: 'faculty',
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -112,6 +113,7 @@ function NewSpeakerForm() {
         linkedin_url: formData.linkedin_url || null,
         website_url: formData.website_url || null,
         photo_url: null,
+        role: formData.role || 'faculty',
       })
 
       if (photoFile) {
@@ -214,7 +216,7 @@ function NewSpeakerForm() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Input
                     label="Full Name *"
                     name="full_name"
@@ -230,6 +232,21 @@ function NewSpeakerForm() {
                     onChange={handleChange}
                     placeholder="MD, PhD, FAAD"
                   />
+                  <div className="space-y-1">
+                    <label className="block text-sm font-medium text-[var(--foreground)]">
+                      Role
+                    </label>
+                    <select
+                      name="role"
+                      value={formData.role}
+                      onChange={handleChange}
+                      className="w-full px-4 py-2.5 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)]"
+                    >
+                      <option value="faculty">Faculty</option>
+                      <option value="leader">Leader</option>
+                      <option value="guest">Guest</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

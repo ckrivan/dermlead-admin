@@ -92,7 +92,6 @@ export async function archiveEvent(id: string): Promise<Event> {
     .from("events")
     .update({
       archived_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     })
     .eq("id", id)
     .select()
@@ -113,7 +112,6 @@ export async function unarchiveEvent(id: string): Promise<Event> {
     .from("events")
     .update({
       archived_at: null,
-      updated_at: new Date().toISOString(),
     })
     .eq("id", id)
     .select()

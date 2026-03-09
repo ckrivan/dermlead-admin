@@ -54,6 +54,7 @@ export interface Speaker {
   email: string | null;
   linkedin_url: string | null;
   website_url: string | null;
+  role: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -197,7 +198,7 @@ export interface Sponsor {
   event_id: string;
   company_name: string;
   description: string | null;
-  tier: "presidents_circle" | "platinum" | "gold" | "silver" | "bronze" | "partner";
+  tier: "title_sponsor" | "presidents_circle" | "platinum" | "gold" | "silver" | "bronze" | "partner";
   logo_url: string | null;
   banner_url: string | null;
   website_url: string | null;
