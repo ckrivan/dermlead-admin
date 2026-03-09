@@ -59,57 +59,55 @@ export async function getUser(userId: string): Promise<UserWithEmail | null> {
 }
 
 /**
- * Update a user's profile
+ * Update a user's profile.
+ * Routes through server API to bypass RLS.
  */
 export async function updateUser(userId: string, updates: UpdateUserData): Promise<Profile> {
-  const supabase = createClient()
+  const res = await fetch('/api/users', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, updates }),
+  })
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', userId)
-    .select()
-    .single()
-
-  if (error) {
-    console.error('Error updating user:', error)
-    throw error
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to update user')
   }
 
   return data
 }
 
 /**
- * Deactivate a user (soft delete)
+ * Deactivate a user (soft delete).
+ * Routes through server API to bypass RLS.
  */
 export async function deactivateUser(userId: string): Promise<void> {
-  const supabase = createClient()
+  const res = await fetch('/api/users', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, updates: { is_active: false } }),
+  })
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({ is_active: false })
-    .eq('id', userId)
-
-  if (error) {
-    console.error('Error deactivating user:', error)
-    throw error
+  if (!res.ok) {
+    const data = await res.json()
+    throw new Error(data.error || 'Failed to deactivate user')
   }
 }
 
 /**
- * Reactivate a user
+ * Reactivate a user.
+ * Routes through server API to bypass RLS.
  */
 export async function reactivateUser(userId: string): Promise<void> {
-  const supabase = createClient()
+  const res = await fetch('/api/users', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, updates: { is_active: true } }),
+  })
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({ is_active: true })
-    .eq('id', userId)
-
-  if (error) {
-    console.error('Error reactivating user:', error)
-    throw error
+  if (!res.ok) {
+    const data = await res.json()
+    throw new Error(data.error || 'Failed to reactivate user')
   }
 }
 
@@ -152,18 +150,18 @@ export async function deleteUser(userId: string): Promise<void> {
 }
 
 /**
- * Change a user's role
+ * Change a user's role.
+ * Routes through server API to bypass RLS.
  */
 export async function changeUserRole(userId: string, newRole: 'admin' | 'rep' | 'attendee' | 'auditor'): Promise<void> {
-  const supabase = createClient()
+  const res = await fetch('/api/users', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, updates: { role: newRole } }),
+  })
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({ role: newRole })
-    .eq('id', userId)
-
-  if (error) {
-    console.error('Error changing user role:', error)
-    throw error
+  if (!res.ok) {
+    const data = await res.json()
+    throw new Error(data.error || 'Failed to change user role')
   }
 }

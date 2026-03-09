@@ -2,6 +2,69 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+/**
+ * PATCH /api/users — Update user (deactivate/reactivate)
+ */
+export async function PATCH(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  }
+
+  const { data: callerProfile } = await supabase
+    .from('profiles')
+    .select('role, organization_id')
+    .eq('id', user.id)
+    .single()
+
+  if (!callerProfile || callerProfile.role !== 'admin') {
+    return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  }
+
+  const body = await request.json()
+  const { userId, updates } = body
+
+  if (!userId || !updates) {
+    return NextResponse.json({ error: 'Missing userId or updates' }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+
+  // Verify target is in same org
+  const { data: targetProfile } = await admin
+    .from('profiles')
+    .select('organization_id')
+    .eq('id', userId)
+    .single()
+
+  if (!targetProfile || targetProfile.organization_id !== callerProfile.organization_id) {
+    return NextResponse.json({ error: 'User not found in your organization' }, { status: 404 })
+  }
+
+  // Only allow safe fields
+  const safeUpdates: Record<string, unknown> = {}
+  if ('is_active' in updates) safeUpdates.is_active = updates.is_active
+  if ('role' in updates) safeUpdates.role = updates.role
+  if ('full_name' in updates) safeUpdates.full_name = updates.full_name
+
+  const { error } = await admin
+    .from('profiles')
+    .update(safeUpdates)
+    .eq('id', userId)
+
+  if (error) {
+    console.error('[update-user] Failed:', error.message)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
+}
+
+/**
+ * DELETE /api/users — Permanently delete user
+ */
 export async function DELETE(request: NextRequest) {
   // Verify the caller is an authenticated admin
   const supabase = await createClient()
