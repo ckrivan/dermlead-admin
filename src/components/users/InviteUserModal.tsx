@@ -20,7 +20,7 @@ export function InviteUserModal({
 }: InviteUserModalProps) {
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
-  const [role, setRole] = useState<'admin' | 'rep'>('rep')
+  const [role, setRole] = useState<'admin' | 'leader' | 'rep' | 'attendee'>('rep')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -139,35 +139,35 @@ export function InviteUserModal({
               Role
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setRole('rep')}
-                className={`flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors ${
-                  role === 'rep'
-                    ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]'
-                    : 'border-[var(--card-border)] text-[var(--foreground-muted)] hover:border-[var(--foreground-subtle)]'
-                }`}
-              >
-                <User size={18} />
-                <span className="font-medium">Rep</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('admin')}
-                className={`flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors ${
-                  role === 'admin'
-                    ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]'
-                    : 'border-[var(--card-border)] text-[var(--foreground-muted)] hover:border-[var(--foreground-subtle)]'
-                }`}
-              >
-                <Shield size={18} />
-                <span className="font-medium">Admin</span>
-              </button>
+              {([
+                { value: 'admin', label: 'Admin', icon: <Shield size={18} /> },
+                { value: 'leader', label: 'Leader', icon: <Shield size={18} /> },
+                { value: 'rep', label: 'Rep', icon: <User size={18} /> },
+                { value: 'attendee', label: 'Attendee', icon: <User size={18} /> },
+              ] as const).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setRole(option.value)}
+                  className={`flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors ${
+                    role === option.value
+                      ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]'
+                      : 'border-[var(--card-border)] text-[var(--foreground-muted)] hover:border-[var(--foreground-subtle)]'
+                  }`}
+                >
+                  {option.icon}
+                  <span className="font-medium">{option.label}</span>
+                </button>
+              ))}
             </div>
             <p className="mt-2 text-xs text-[var(--foreground-muted)]">
               {role === 'admin'
                 ? 'Admins can manage team members and all settings'
-                : 'Reps can capture leads and view event data'}
+                : role === 'leader'
+                ? 'Leaders can moderate Q&A and create announcements'
+                : role === 'rep'
+                ? 'Reps can capture leads and view event data'
+                : 'Attendees can view events and participate'}
             </p>
           </div>
 
