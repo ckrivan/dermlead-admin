@@ -20,7 +20,7 @@ export function InviteUserModal({
 }: InviteUserModalProps) {
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
-  const [role, setRole] = useState<'admin' | 'staff' | 'leader' | 'rep' | 'attendee'>('rep')
+  const [role, setRole] = useState<'admin' | 'staff' | 'leadership' | 'rep' | 'attendee'>('rep')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -142,7 +142,7 @@ export function InviteUserModal({
               {([
                 { value: 'admin', label: 'Admin', icon: <Shield size={18} /> },
                 { value: 'staff', label: 'BCI Staff', icon: <Shield size={18} /> },
-                { value: 'leader', label: 'Leader', icon: <Shield size={18} /> },
+                { value: 'leadership', label: 'Leadership', icon: <Shield size={18} /> },
                 { value: 'rep', label: 'Rep', icon: <User size={18} /> },
                 { value: 'attendee', label: 'Attendee', icon: <User size={18} /> },
               ] as const).map((option) => (
@@ -165,9 +165,9 @@ export function InviteUserModal({
               {role === 'admin'
                 ? 'Admins can manage team members and all settings'
                 : role === 'staff'
-                ? 'BCI Staff can check-in, announcements, and leads in the app'
-                : role === 'leader'
-                ? 'Leaders can moderate Q&A and create announcements'
+                ? 'Staff can check-in, announcements, leads, and analytics'
+                : role === 'leadership'
+                ? 'Leadership can create announcements'
                 : role === 'rep'
                 ? 'Reps can capture leads and view event data'
                 : 'Attendees can view events and participate'}

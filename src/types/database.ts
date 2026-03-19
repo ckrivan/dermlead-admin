@@ -12,7 +12,7 @@ export interface Profile {
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
-  role: "admin" | "staff" | "leader" | "rep" | "attendee" | "auditor";
+  role: "admin" | "staff" | "leadership" | "rep" | "attendee";
   organization_id: string | null;
   is_active: boolean;
   credentials: string | null;
