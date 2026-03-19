@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
+  CreditCard,
+  Target,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -26,6 +28,8 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Events', href: '/events', icon: Calendar },
   { name: 'Attendees', href: '/attendees', icon: UserCheck },
+  { name: 'Leads', href: '/leads', icon: Target },
+  { name: 'Badges', href: '/badges', icon: CreditCard },
   { name: 'Faculty', href: '/speakers', icon: Users },
   { name: 'Sessions', href: '/sessions', icon: Presentation },
   { name: 'Groups', href: '/groups', icon: UsersRound },
@@ -55,10 +59,15 @@ export function Sidebar() {
     >
       {/* Logo / Brand */}
       <div className="flex h-16 items-center justify-between px-4 border-b border-white/20">
-        {!collapsed && (
-          <span className="text-xl font-bold text-white">
-            Converge
-          </span>
+        {!collapsed ? (
+          <div className="flex items-center gap-2">
+            <img src="/images/converge-icon.png" alt="Converge" className="w-8 h-8" />
+            <span className="text-xl font-bold text-white">
+              Converge
+            </span>
+          </div>
+        ) : (
+          <img src="/images/converge-icon.png" alt="Converge" className="w-8 h-8" />
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}

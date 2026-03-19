@@ -16,6 +16,7 @@ export function UserTable({ users, currentUserId, onEditUser, onRefresh }: UserT
   const [actionMenuId, setActionMenuId] = useState<string | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const handleDeactivate = async (userId: string) => {
     setLoading(userId)
@@ -45,15 +46,17 @@ export function UserTable({ users, currentUserId, onEditUser, onRefresh }: UserT
 
   const handleDelete = async (userId: string) => {
     setLoading(userId)
+    setDeleteError(null)
     try {
       await deleteUser(userId)
+      setConfirmDeleteId(null)
+      setActionMenuId(null)
       onRefresh()
     } catch (error) {
       console.error('Failed to delete user:', error)
+      setDeleteError(error instanceof Error ? error.message : 'Failed to delete user')
     } finally {
       setLoading(null)
-      setConfirmDeleteId(null)
-      setActionMenuId(null)
     }
   }
 
@@ -218,9 +221,14 @@ export function UserTable({ users, currentUserId, onEditUser, onRefresh }: UserT
               Are you sure you want to permanently delete{' '}
               <strong>{users.find(u => u.id === confirmDeleteId)?.full_name || 'this user'}</strong>?
             </p>
-            <p className="text-sm text-[var(--accent-danger)] mb-6">
+            <p className="text-sm text-[var(--accent-danger)] mb-4">
               This action cannot be undone. Their leads and check-in history will be preserved but unlinked from this account.
             </p>
+            {deleteError && (
+              <p className="text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">
+                Error: {deleteError}
+              </p>
+            )}
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setConfirmDeleteId(null)}

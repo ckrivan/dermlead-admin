@@ -40,6 +40,20 @@ export default function SpeakersPage() {
   const [messageResult, setMessageResult] = useState<{ sent: number; errors: string[] } | null>(null)
   const [roleFilter, setRoleFilter] = useState<string>('all')
 
+  // Derive user-facing badges from role array
+  // Faculty is internal — faculty-only people are "Speakers"
+  const getDerivedBadges = (roles: string[]): string[] => {
+    const badges: string[] = []
+    if (roles.includes('bci_staff')) badges.push('staff')
+    if (roles.includes('leader')) badges.push('leader')
+    if (roles.includes('speaker')) badges.push('speaker')
+    // Faculty without specific roles = session speaker
+    if (roles.includes('faculty') && badges.length === 0) badges.push('speaker')
+    if (roles.includes('industry')) badges.push('industry')
+    if (roles.includes('guest') && badges.length === 0) badges.push('guest')
+    return badges
+  }
+
   useEffect(() => {
     let cancelled = false
     async function loadData() {
@@ -262,14 +276,15 @@ export default function SpeakersPage() {
           <div className="flex items-center gap-1 bg-[var(--background-secondary)] rounded-lg p-1 w-fit">
             {[
               { value: 'all', label: 'All' },
-              { value: 'faculty', label: 'Faculty' },
+              { value: 'speaker', label: 'Speakers' },
               { value: 'leader', label: 'Leaders' },
+              { value: 'staff', label: 'Staff' },
               { value: 'industry', label: 'Industry' },
               { value: 'guest', label: 'Guests' },
             ].map((tab) => {
               const count = tab.value === 'all'
                 ? speakers.length
-                : speakers.filter((s) => (s.role || ['faculty']).includes(tab.value)).length
+                : speakers.filter((s) => getDerivedBadges(s.role || ['faculty']).includes(tab.value)).length
               if (tab.value !== 'all' && count === 0) return null
               return (
                 <button
@@ -351,7 +366,7 @@ export default function SpeakersPage() {
               </div>
             )}
             {speakers
-              .filter((s) => roleFilter === 'all' || (s.role || ['faculty']).includes(roleFilter))
+              .filter((s) => roleFilter === 'all' || getDerivedBadges(s.role || ['faculty']).includes(roleFilter))
               .map((speaker) => (
               <Card
                 key={speaker.id}
@@ -402,15 +417,19 @@ export default function SpeakersPage() {
                             {speaker.credentials}
                           </span>
                         )}
-                        {speaker.role?.filter((r) => r !== 'faculty').map((r) => (
-                          <span key={r} className={`text-xs px-1.5 py-0.5 rounded-full ${
-                            r === 'leader'
+                        {getDerivedBadges(speaker.role || ['faculty']).map((badge) => (
+                          <span key={badge} className={`text-xs px-1.5 py-0.5 rounded-full ${
+                            badge === 'speaker'
                               ? 'bg-purple-500/15 text-purple-400'
-                              : r === 'industry'
+                              : badge === 'leader'
+                              ? 'bg-blue-500/15 text-blue-400'
+                              : badge === 'staff'
+                              ? 'bg-teal-500/15 text-teal-400'
+                              : badge === 'industry'
                               ? 'bg-amber-500/15 text-amber-400'
-                              : 'bg-blue-500/15 text-blue-400'
+                              : 'bg-gray-500/15 text-gray-400'
                           }`}>
-                            {r === 'leader' ? 'Leader' : r === 'industry' ? 'Industry' : 'Guest'}
+                            {badge === 'speaker' ? 'Speaker' : badge === 'leader' ? 'Leader' : badge === 'staff' ? 'Staff' : badge === 'industry' ? 'Industry' : 'Guest'}
                           </span>
                         ))}
                       </div>

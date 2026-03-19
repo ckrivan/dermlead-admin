@@ -362,6 +362,8 @@ export async function bulkCreateSessions(
 export const SESSION_TYPES = [
   { value: 'keynote', label: 'Keynote' },
   { value: 'presentation', label: 'Presentation' },
+  { value: 'general_session', label: 'General Session' },
+  { value: 'product_theater', label: 'Product Theater' },
   { value: 'workshop', label: 'Workshop' },
   { value: 'panel', label: 'Panel Discussion' },
   { value: 'breakout', label: 'Breakout Session' },

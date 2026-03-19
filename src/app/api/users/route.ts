@@ -108,12 +108,16 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'User not found in your organization' }, { status: 404 })
   }
 
-  // Nullify foreign key references
-  await admin.from('leads').update({ captured_by: null }).eq('captured_by', userId)
+  // Nullify foreign key references before deleting profile
+  const { error: leadsError } = await admin.from('leads').update({ captured_by: null }).eq('captured_by', userId)
+  if (leadsError) {
+    console.error('[delete-user] Failed to nullify leads.captured_by:', leadsError.message)
+    return NextResponse.json({ error: 'Failed to unlink leads: ' + leadsError.message }, { status: 500 })
+  }
   await admin.from('attendees').update({ checked_in_by: null }).eq('checked_in_by', userId)
   await admin.from('attendees').update({ profile_id: null }).eq('profile_id', userId)
 
-  // Delete the profile (cascades to post_follows, session_reminders, etc.)
+  // Delete the profile
   const { error: deleteError } = await admin
     .from('profiles')
     .delete()
@@ -124,7 +128,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 })
   }
 
-  // Also delete the auth user so they can't log in
+  // Delete the auth user so they can't log in
   const { error: authError } = await admin.auth.admin.deleteUser(userId)
   if (authError) {
     console.error('[delete-user] Profile deleted but auth user removal failed:', authError.message)

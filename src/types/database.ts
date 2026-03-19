@@ -12,7 +12,7 @@ export interface Profile {
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
-  role: "admin" | "rep" | "attendee" | "auditor";
+  role: "admin" | "staff" | "leader" | "rep" | "attendee" | "auditor";
   organization_id: string | null;
   is_active: boolean;
   credentials: string | null;
@@ -54,8 +54,21 @@ export interface Event {
   logo_url: string | null;
   show_logo_on_banner: boolean | null;
   custom_url_slug: string | null;
+  badge_template?: BadgeTemplateConfig | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface BadgeTemplateConfig {
+  eventTitle: string[];
+  barColor: string;
+  barOutlineColor: string;
+  barHeight: number;
+  ruleColor: string;
+  ruleHeight: number;
+  logoUrl: string | null;
+  logoPosition: { x: number; y: number; w: number; h: number };
+  barLabel: string;
 }
 
 export interface Speaker {
@@ -151,6 +164,7 @@ export interface Lead {
   notes: string | null;
   lead_score: number;
   photo_url: string | null;
+  capture_type: string | null; // 'exhibit' or 'product_theater'
   synced_at: string | null;
   created_at: string;
   updated_at: string;
@@ -193,6 +207,9 @@ export interface Announcement {
   title: string;
   message: string;
   target_groups: string[] | null; // null means all attendees
+  target_badge_types: string[] | null; // null means all badge types
+  sender_name: string | null;
+  reply_to_email: string | null;
   scheduled_at: string | null;
   sent_at: string | null;
   created_at: string;

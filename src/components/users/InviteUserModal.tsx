@@ -20,7 +20,7 @@ export function InviteUserModal({
 }: InviteUserModalProps) {
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
-  const [role, setRole] = useState<'admin' | 'leader' | 'rep' | 'attendee'>('rep')
+  const [role, setRole] = useState<'admin' | 'staff' | 'leader' | 'rep' | 'attendee'>('rep')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -141,6 +141,7 @@ export function InviteUserModal({
             <div className="grid grid-cols-2 gap-3">
               {([
                 { value: 'admin', label: 'Admin', icon: <Shield size={18} /> },
+                { value: 'staff', label: 'BCI Staff', icon: <Shield size={18} /> },
                 { value: 'leader', label: 'Leader', icon: <Shield size={18} /> },
                 { value: 'rep', label: 'Rep', icon: <User size={18} /> },
                 { value: 'attendee', label: 'Attendee', icon: <User size={18} /> },
@@ -163,6 +164,8 @@ export function InviteUserModal({
             <p className="mt-2 text-xs text-[var(--foreground-muted)]">
               {role === 'admin'
                 ? 'Admins can manage team members and all settings'
+                : role === 'staff'
+                ? 'BCI Staff can check-in, announcements, and leads in the app'
                 : role === 'leader'
                 ? 'Leaders can moderate Q&A and create announcements'
                 : role === 'rep'

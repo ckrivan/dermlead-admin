@@ -251,6 +251,7 @@ function NewSpeakerForm() {
                       {[
                         { value: 'faculty', label: 'Faculty' },
                         { value: 'leader', label: 'Leader' },
+                        { value: 'bci_staff', label: 'BCI Staff' },
                         { value: 'industry', label: 'Industry' },
                         { value: 'guest', label: 'Guest' },
                       ].map((opt) => (

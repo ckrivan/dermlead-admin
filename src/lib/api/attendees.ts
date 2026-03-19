@@ -590,6 +590,7 @@ export const BADGE_TYPES = [
   { value: "speaker", label: "Speaker" },
   { value: "exhibitor", label: "Exhibitor" },
   { value: "sponsor", label: "Sponsor" },
+  { value: "leader", label: "Leadership" },
   { value: "staff", label: "Staff" },
   { value: "vip", label: "VIP" },
   { value: "press", label: "Press" },

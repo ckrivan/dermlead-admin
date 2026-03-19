@@ -8,13 +8,13 @@ export interface UserWithEmail extends Profile {
 export interface InviteUserData {
   email: string
   full_name: string
-  role: 'admin' | 'leader' | 'rep' | 'attendee' | 'auditor'
+  role: 'admin' | 'staff' | 'leader' | 'rep' | 'attendee' | 'auditor'
   organization_id: string
 }
 
 export interface UpdateUserData {
   full_name?: string
-  role?: 'admin' | 'leader' | 'rep' | 'attendee' | 'auditor'
+  role?: 'admin' | 'staff' | 'leader' | 'rep' | 'attendee' | 'auditor'
   is_active?: boolean
 }
 
@@ -155,7 +155,7 @@ export async function deleteUser(userId: string): Promise<void> {
  * Change a user's role.
  * Routes through server API to bypass RLS.
  */
-export async function changeUserRole(userId: string, newRole: 'admin' | 'leader' | 'rep' | 'attendee' | 'auditor'): Promise<void> {
+export async function changeUserRole(userId: string, newRole: 'admin' | 'staff' | 'leader' | 'rep' | 'attendee' | 'auditor'): Promise<void> {
   const res = await fetch('/api/users', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

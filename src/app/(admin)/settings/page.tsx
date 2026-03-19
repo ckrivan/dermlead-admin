@@ -2,15 +2,17 @@
 
 import { useState } from 'react'
 import { Header } from '@/components/layout/Header'
-import { Building2, Users, User } from 'lucide-react'
+import { Building2, Users, User, Key } from 'lucide-react'
 import { OrganizationSettings, TeamSettings, ProfileSettings } from '@/components/settings'
+import { LeadAccessSettings } from '@/components/settings/LeadAccessSettings'
 
-type Tab = 'organization' | 'team' | 'profile'
+type Tab = 'organization' | 'team' | 'profile' | 'lead-access'
 
 const tabs = [
   { id: 'organization' as Tab, label: 'Organization', icon: Building2 },
   { id: 'team' as Tab, label: 'Team', icon: Users },
   { id: 'profile' as Tab, label: 'Profile', icon: User },
+  { id: 'lead-access' as Tab, label: 'Lead Access', icon: Key },
 ]
 
 export default function SettingsPage() {
@@ -43,6 +45,7 @@ export default function SettingsPage() {
         {activeTab === 'organization' && <OrganizationSettings />}
         {activeTab === 'team' && <TeamSettings />}
         {activeTab === 'profile' && <ProfileSettings />}
+        {activeTab === 'lead-access' && <LeadAccessSettings />}
       </div>
     </>
   )

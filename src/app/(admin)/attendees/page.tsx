@@ -9,6 +9,7 @@ import {
   createAttendee,
   searchAttendeeRoster,
   deleteAttendee,
+  updateAttendee,
   checkInAttendee,
   undoCheckIn,
   bulkCreateAttendees,
@@ -45,6 +46,7 @@ import {
   SlidersHorizontal,
   Eye,
   EyeOff,
+  Pencil,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { QRCodeSVG } from "qrcode.react";
@@ -172,6 +174,21 @@ export default function AttendeesPage() {
   const [qrAttendee, setQrAttendee] = useState<AttendeeWithGroups | null>(
     null,
   );
+
+  // Edit attendee state
+  const [editAttendee, setEditAttendee] = useState<AttendeeWithGroups | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editForm, setEditForm] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    specialty: "",
+    institution: "",
+    credentials: "",
+    title: "",
+    badge_type: "attendee",
+  });
 
   // Roster search error state
   const [rosterError, setRosterError] = useState<string | null>(null);
@@ -369,6 +386,48 @@ export default function AttendeesPage() {
     } finally {
       setDeleting(null);
       setOpenMoreMenu(null);
+    }
+  };
+
+  const openEditModal = (attendee: AttendeeWithGroups) => {
+    setEditAttendee(attendee);
+    setEditForm({
+      first_name: attendee.first_name || "",
+      last_name: attendee.last_name || "",
+      email: attendee.email || "",
+      phone: attendee.phone || "",
+      specialty: attendee.specialty || "",
+      institution: attendee.institution || "",
+      credentials: attendee.credentials || "",
+      title: attendee.title || "",
+      badge_type: attendee.badge_type || "attendee",
+    });
+    setOpenMoreMenu(null);
+    setOpenMoreMenuRect(null);
+  };
+
+  const handleEditSave = async () => {
+    if (!editAttendee) return;
+    setEditSubmitting(true);
+    try {
+      await updateAttendee(editAttendee.id, {
+        first_name: editForm.first_name,
+        last_name: editForm.last_name,
+        email: editForm.email,
+        phone: editForm.phone || null,
+        specialty: editForm.specialty || null,
+        institution: editForm.institution || null,
+        credentials: editForm.credentials || null,
+        title: editForm.title || null,
+        badge_type: editForm.badge_type,
+      });
+      await refetchAttendees();
+      setEditAttendee(null);
+    } catch (error) {
+      console.error("Error updating attendee:", error);
+      alert("Failed to update attendee");
+    } finally {
+      setEditSubmitting(false);
     }
   };
 
@@ -1683,6 +1742,16 @@ export default function AttendeesPage() {
             >
               <button
                 onClick={() => {
+                  const att = attendees.find((a) => a.id === openMoreMenu);
+                  if (att) openEditModal(att);
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-[var(--foreground)] hover:bg-[var(--background-tertiary)] flex items-center gap-2"
+              >
+                <Pencil size={14} />
+                Edit
+              </button>
+              <button
+                onClick={() => {
                   handleDelete(openMoreMenu);
                   setOpenMoreMenu(null);
                   setOpenMoreMenuRect(null);
@@ -1782,6 +1851,175 @@ export default function AttendeesPage() {
                 }}
               >
                 Download
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Attendee Modal */}
+      {editAttendee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
+              <h3 className="font-semibold text-lg text-[var(--foreground)]">
+                Edit Attendee
+              </h3>
+              <button
+                onClick={() => setEditAttendee(null)}
+                className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Badge Type — prominent selector */}
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Badge Type
+                </label>
+                <select
+                  value={editForm.badge_type}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, badge_type: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm focus:ring-2 focus:ring-[var(--accent-primary)]"
+                >
+                  {BADGE_TYPES.map((bt) => (
+                    <option key={bt.value} value={bt.value}>
+                      {bt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    First Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.first_name}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, first_name: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.last_name}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, last_name: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, email: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Phone
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.phone}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, phone: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Credentials
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.credentials}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, credentials: e.target.value })
+                    }
+                    placeholder="MD, PA-C, NP..."
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Specialty
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.specialty}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, specialty: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.title}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, title: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Institution
+                </label>
+                <input
+                  type="text"
+                  value={editForm.institution}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, institution: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 p-4 border-t border-[var(--card-border)]">
+              <Button variant="ghost" onClick={() => setEditAttendee(null)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleEditSave}
+                disabled={editSubmitting || !editForm.first_name || !editForm.last_name || !editForm.email}
+              >
+                {editSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </div>
