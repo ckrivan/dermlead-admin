@@ -4,6 +4,38 @@
 - **ALWAYS use claude-mem** instead of Serena for memory and context retrieval
 - **ALWAYS use Supabase CLI** for database operations (never direct SQL unless necessary)
 
+## CRITICAL: Roles & Permissions Architecture
+
+**Source of truth chain: Supabase → Admin Panel → Flutter App**
+
+### How Roles Work
+- `profiles.role` = GLOBAL role (admin, rep, leadership, attendee). Only `admin` and `rep` grant global access.
+- `attendees.badge_type` = EVENT-SCOPED role. A person can be "staff" at one event and "attendee" at another.
+- The Flutter app's `effectiveRoleProvider` combines both: global roles always apply, badge_type applies per-event.
+
+### Capability Matrix (from effectiveRoleProvider)
+| Capability | admin | staff (event) | rep | leadership | attendee |
+|-----------|-------|---------------|-----|-----------|----------|
+| See all events | Yes | No | No | No | No |
+| Leads tab | Yes | Yes | Yes | No | No |
+| Check-in | Yes | Yes | No | No | No |
+| Analytics | Yes | Yes | No | No | No |
+| Announcements | Yes | Yes | No | Yes | No |
+| Moderation | Yes | Yes | No | Yes | No |
+
+### RULES — Read Before Touching Roles
+1. **NEVER sync event-scoped data to global fields.** Do NOT create triggers that write `attendees.badge_type` → `profiles.role`. Badge_type is per-event; profile.role is global. Syncing them breaks multi-event users.
+2. **effectiveRoleProvider is the SINGLE source of truth** in Flutter. ALL capability checks MUST derive from it. Never check `profiles.role` directly for capabilities — use the provider.
+3. **When fixing a permission issue, grep ALL files** for the permission check. The same gate may exist in multiple screens (events_screen.dart, event_hub_screen.dart, etc.). Fix ALL of them, not just the first one you find.
+4. **When adding a new capability gate**, use `effectiveRoleProvider` or a provider that derives from it. Never hardcode `role == 'admin'` — always include 'staff' if staff should have access.
+5. **FutureProvider caches values.** If data can change externally (admin panel), add a real-time listener or invalidate on app resume. A FutureProvider alone is NOT enough for live data.
+6. **selectedEventProvider can be null.** It's only set when the user explicitly picks an event or the auto-select code runs. Any provider that needs the event ID must handle the null case gracefully.
+
+### Key Provider Files
+- `Lead Generation/lib/data/providers/profile_provider.dart` — effectiveRoleProvider, eventBadgeTypeProvider, all capability providers
+- `Lead Generation/lib/shared/widgets/main_scaffold.dart` — real-time listeners for profiles + attendees
+- `Lead Generation/lib/features/events/screens/events_screen.dart` — event home page with check-in/analytics gates
+
 ## Supabase Database CLI Commands
 
 ### Project Info
