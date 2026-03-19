@@ -231,11 +231,11 @@ export async function generateBadgePDF(
           firstName: a.first_name,
           lastName: a.last_name,
           credentials: a.credentials || undefined,
-          email: a.email || undefined,
-          phone: a.phone || undefined,
           institution: a.institution || undefined,
           specialty: a.specialty || undefined,
           npiNumber: a.npi_number || undefined,
+          city: a.city || undefined,
+          state: a.state || undefined,
         })
       )
     )

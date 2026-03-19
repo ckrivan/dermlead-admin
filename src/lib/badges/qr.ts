@@ -9,6 +9,8 @@ export interface QRAttendeeData {
   institution?: string
   specialty?: string
   npiNumber?: string
+  city?: string
+  state?: string
 }
 
 export async function generateQRDataURL(data: QRAttendeeData): Promise<string> {
@@ -23,6 +25,8 @@ export async function generateQRDataURL(data: QRAttendeeData): Promise<string> {
   if (data.institution) payload.institution = data.institution
   if (data.specialty) payload.specialty = data.specialty
   if (data.npiNumber) payload.npiNumber = data.npiNumber
+  if (data.city) payload.city = data.city
+  if (data.state) payload.state = data.state
 
   return QRCode.toDataURL(JSON.stringify(payload), {
     margin: 1,
