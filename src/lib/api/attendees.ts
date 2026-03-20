@@ -255,15 +255,42 @@ export async function createAttendee(
     }
   }
 
-  const { data, error } = await supabase
+  // Check if attendee already exists at this event (prevent duplicates)
+  const { data: existing } = await supabase
     .from("attendees")
-    .insert(attendee)
-    .select()
-    .single();
+    .select("id")
+    .eq("event_id", attendee.event_id)
+    .ilike("email", attendee.email)
+    .maybeSingle();
 
-  if (error) {
-    console.error("Error creating attendee:", error);
-    throw error;
+  let data: Attendee;
+
+  if (existing) {
+    // Update existing record instead of creating a duplicate
+    const { data: updated, error } = await supabase
+      .from("attendees")
+      .update(attendee)
+      .eq("id", existing.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating existing attendee:", error);
+      throw error;
+    }
+    data = updated;
+  } else {
+    const { data: created, error } = await supabase
+      .from("attendees")
+      .insert(attendee)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creating attendee:", error);
+      throw error;
+    }
+    data = created;
   }
 
   // Add group memberships
