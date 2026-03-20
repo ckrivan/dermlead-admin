@@ -3,6 +3,7 @@ import { createBrowserClient } from '@supabase/ssr'
 // Singleton — createBrowserClient is designed to be instantiated once per browser tab.
 // Multiple instances conflict over internal auth state and abort each other's requests.
 let _client: ReturnType<typeof createBrowserClient> | null = null
+let _refreshSetup = false
 
 export function createClient() {
   if (!_client) {
@@ -22,5 +23,28 @@ export function createClient() {
       }
     )
   }
+
+  // One-time setup: refresh auth when tab becomes visible after idle.
+  // The no-op lock bypasses Supabase's internal token refresh, so we
+  // manually refresh when the user comes back to the tab.
+  if (!_refreshSetup && typeof document !== 'undefined') {
+    _refreshSetup = true
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && _client) {
+        _client.auth.getSession().then(({ data: { session } }: { data: { session: { access_token: string; refresh_token: string } | null } }) => {
+          if (session) {
+            // Re-set the session to force a token refresh if needed
+            _client!.auth.setSession({
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+            })
+          }
+        }).catch(() => {
+          // Silently ignore — proxy.ts will handle on next server request
+        })
+      }
+    })
+  }
+
   return _client
 }

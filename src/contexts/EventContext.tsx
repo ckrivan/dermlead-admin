@@ -35,19 +35,21 @@ interface EventContextValue {
 const EventContext = createContext<EventContextValue | null>(null)
 
 export function EventProvider({ children }: { children: ReactNode }) {
-  const { loading: authLoading } = useAuth()
+  const { loading: authLoading, user } = useAuth()
 
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEvent, setSelectedEventState] = useState<Event | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [showPicker, setShowPicker] = useState(false)
-  const hasLoaded = useRef(false)
+  const loadedForUser = useRef<string | null>(null)
 
   useEffect(() => {
-    // Wait for auth session before fetching — prevents race condition on mobile Safari
-    // hasLoaded guard prevents duplicate fetches if authLoading toggles multiple times
-    if (authLoading || hasLoaded.current) return
-    hasLoaded.current = true
+    // Wait for auth session before fetching
+    if (authLoading) return
+    // Only re-fetch if the user changed (login, logout, token refresh)
+    const userId = user?.id ?? null
+    if (loadedForUser.current === (userId ?? '__none__')) return
+    loadedForUser.current = userId ?? '__none__'
 
     let cancelled = false
 
@@ -114,7 +116,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       cancelled = true
       clearTimeout(safetyTimer)
     }
-  }, [authLoading]) // Re-fires once auth resolves
+  }, [authLoading, user?.id]) // Re-fires on auth resolve or user change
 
   const setSelectedEvent = (event: Event) => {
     setSelectedEventState(event)

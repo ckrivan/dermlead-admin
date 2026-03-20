@@ -314,12 +314,18 @@ export async function updateAttendee(
 ): Promise<Attendee> {
   const supabase = createClient();
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
   const { data, error } = await supabase
     .from("attendees")
     .update(updates)
     .eq("id", id)
+    .abortSignal(controller.signal)
     .select()
     .single();
+
+  clearTimeout(timeout);
 
   if (error) {
     console.error("Error updating attendee:", error);
