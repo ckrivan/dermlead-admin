@@ -26,6 +26,7 @@ export default function NewEventPage() {
     description: '',
     invite_code: '',
     primary_color: '#3b82f6',
+    lead_access_days: '14',
   })
 
   const [tracks, setTracks] = useState<string[]>([])
@@ -113,6 +114,7 @@ export default function NewEventPage() {
         end_date: formData.end_date,
         description: formData.description || null,
         invite_code: formData.invite_code || null,
+        lead_access_days: parseInt(formData.lead_access_days) || 14,
         banner_url: null,
         interest_options: null,
         website_url: null,
@@ -336,6 +338,27 @@ export default function NewEventPage() {
                       </p>
                     </div>
                   )}
+
+                  <div className="pt-4 border-t border-[var(--border)]">
+                    <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                      Lead Access Window
+                    </label>
+                    <p className="text-xs text-[var(--foreground-muted)] mb-2">
+                      Number of days after the event ends that reps can download their captured leads.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        name="lead_access_days"
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={formData.lead_access_days}
+                        onChange={handleChange}
+                        className="w-24"
+                      />
+                      <span className="text-sm text-[var(--foreground-muted)]">days after event ends</span>
+                    </div>
+                  </div>
                 </CardBody>
 
                 <CardFooter className="flex justify-end gap-3">

@@ -41,6 +41,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/unauthorized') ||
+    pathname.startsWith('/privacy') ||
+    pathname.startsWith('/terms') ||
     pathname === '/'
   ) {
     // If user is logged in and trying to access login, redirect to dashboard

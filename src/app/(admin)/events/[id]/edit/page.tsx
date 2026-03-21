@@ -63,6 +63,7 @@ export default function EditEventPage({ params }: EditEventPageProps) {
     description: "",
     invite_code: "",
     primary_color: "#3b82f6",
+    lead_access_days: "14",
   });
 
   const [tracks, setTracks] = useState<string[]>([]);
@@ -85,6 +86,7 @@ export default function EditEventPage({ params }: EditEventPageProps) {
             description: data.description || "",
             invite_code: data.invite_code || "",
             primary_color: data.primary_color || "#3b82f6",
+            lead_access_days: String(data.lead_access_days ?? 14),
           });
           setTracks([]);
           setBannerPreview(data.banner_url);
@@ -200,6 +202,7 @@ export default function EditEventPage({ params }: EditEventPageProps) {
         description: formData.description || null,
         invite_code: formData.invite_code || null,
         primary_color: formData.primary_color,
+        lead_access_days: parseInt(formData.lead_access_days) || 14,
       });
 
       router.push("/events");
@@ -594,6 +597,29 @@ export default function EditEventPage({ params }: EditEventPageProps) {
                       </p>
                     </div>
                   )}
+                </CardBody>
+              </Card>
+
+              <Card>
+                <CardBody className="space-y-4">
+                  <label className="block text-sm font-medium text-[var(--foreground-primary)]">
+                    Lead Access Window
+                  </label>
+                  <p className="text-xs text-[var(--foreground-muted)]">
+                    Number of days after the event ends that reps can download their captured leads.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      name="lead_access_days"
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={formData.lead_access_days}
+                      onChange={handleChange}
+                      className="w-24"
+                    />
+                    <span className="text-sm text-[var(--foreground-muted)]">days after event ends</span>
+                  </div>
                 </CardBody>
               </Card>
             </div>
