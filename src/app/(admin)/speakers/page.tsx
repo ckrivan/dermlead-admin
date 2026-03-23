@@ -39,18 +39,17 @@ export default function SpeakersPage() {
   })
   const [messageResult, setMessageResult] = useState<{ sent: number; errors: string[] } | null>(null)
   const [roleFilter, setRoleFilter] = useState<string>('all')
+  const [organisers, setOrganisers] = useState<{id: string, first_name: string, last_name: string, email: string, badge_type: string}[]>([])
 
   // Derive user-facing badges from role array
   // Faculty is internal — faculty-only people are "Speakers"
   const getDerivedBadges = (roles: string[]): string[] => {
     const badges: string[] = []
-    if (roles.includes('bci_staff')) badges.push('staff')
     if (roles.includes('leader')) badges.push('leader')
+    if (roles.includes('organiser')) badges.push('organizer')
     if (roles.includes('speaker')) badges.push('speaker')
     // Faculty without specific roles = session speaker
     if (roles.includes('faculty') && badges.length === 0) badges.push('speaker')
-    if (roles.includes('industry')) badges.push('industry')
-    if (roles.includes('guest') && badges.length === 0) badges.push('guest')
     return badges
   }
 
@@ -89,11 +88,15 @@ export default function SpeakersPage() {
 
       setLoading(true)
       try {
-        const [speakersData, groupsData] = await Promise.all([
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        const [speakersData, groupsData, organisersResult] = await Promise.all([
           getSpeakers(selectedEventId),
           getGroups(selectedEventId),
+          supabase.from('attendees').select('id, first_name, last_name, email, badge_type').eq('event_id', selectedEventId).eq('badge_type', 'organiser'),
         ])
         setSpeakers(speakersData)
+        setOrganisers(organisersResult.data || [])
         setGroups(groupsData)
       } catch (err) {
         console.error('Error loading speakers:', err)
@@ -209,9 +212,9 @@ export default function SpeakersPage() {
         subtitle="Manage faculty for your events"
       />
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         {/* Event Selector & Actions */}
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
             <label className="text-sm text-[var(--foreground-muted)]">
               Event:
@@ -273,19 +276,19 @@ export default function SpeakersPage() {
 
         {/* Role Filter Tabs */}
         {speakers.length > 0 && (
-          <div className="flex items-center gap-1 bg-[var(--background-secondary)] rounded-lg p-1 w-fit">
+          <div className="flex items-center gap-1 bg-[var(--background-secondary)] rounded-lg p-1 w-fit overflow-x-auto">
             {[
               { value: 'all', label: 'All' },
               { value: 'speaker', label: 'Speakers' },
               { value: 'leader', label: 'Leaders' },
-              { value: 'staff', label: 'Staff' },
-              { value: 'industry', label: 'Industry' },
-              { value: 'guest', label: 'Guests' },
+              { value: 'organizer', label: 'Organizers' },
             ].map((tab) => {
               const count = tab.value === 'all'
                 ? speakers.length
+                : tab.value === 'organizer'
+                ? organisers.length
                 : speakers.filter((s) => getDerivedBadges(s.role || ['faculty']).includes(tab.value)).length
-              if (tab.value !== 'all' && count === 0) return null
+              if (tab.value !== 'all' && tab.value !== 'organizer' && count === 0) return null
               return (
                 <button
                   key={tab.value}
@@ -365,7 +368,33 @@ export default function SpeakersPage() {
                 </button>
               </div>
             )}
-            {speakers
+            {/* Organisers from attendees table */}
+            {roleFilter === 'organizer' && organisers.map((org) => (
+              <Card key={org.id}>
+                <CardBody>
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0">
+                      <div className="w-12 h-12 rounded-full bg-teal-100 flex items-center justify-center">
+                        <span className="text-teal-700 font-bold text-sm">
+                          {(org.first_name?.[0] || '') + (org.last_name?.[0] || '')}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-[var(--foreground)] truncate">
+                        {org.first_name} {org.last_name}
+                      </h3>
+                      <p className="text-sm text-[var(--foreground-muted)] truncate">{org.email}</p>
+                      <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full bg-teal-100 text-teal-800 border border-teal-200">
+                        Organiser
+                      </span>
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+            {/* Speakers/Leaders from speakers table */}
+            {roleFilter !== 'organizer' && speakers
               .filter((s) => roleFilter === 'all' || getDerivedBadges(s.role || ['faculty']).includes(roleFilter))
               .map((speaker) => (
               <Card
@@ -423,13 +452,11 @@ export default function SpeakersPage() {
                               ? 'bg-purple-500/15 text-purple-400'
                               : badge === 'leader'
                               ? 'bg-blue-500/15 text-blue-400'
-                              : badge === 'staff'
+                              : badge === 'organizer'
                               ? 'bg-teal-500/15 text-teal-400'
-                              : badge === 'industry'
-                              ? 'bg-amber-500/15 text-amber-400'
                               : 'bg-gray-500/15 text-gray-400'
                           }`}>
-                            {badge === 'speaker' ? 'Speaker' : badge === 'leader' ? 'Leader' : badge === 'staff' ? 'Staff' : badge === 'industry' ? 'Industry' : 'Guest'}
+                            {badge === 'speaker' ? 'Speaker' : badge === 'leader' ? 'Leader' : badge === 'organizer' ? 'Organizer' : badge}
                           </span>
                         ))}
                       </div>
@@ -510,7 +537,7 @@ export default function SpeakersPage() {
             </div>
 
             <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-[var(--foreground-muted)] mb-1">
                     Your Name

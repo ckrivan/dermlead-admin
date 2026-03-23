@@ -71,7 +71,7 @@ export function UserTable({ users, currentUserId, onEditUser, onRefresh }: UserT
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full">
+      <table className="w-full min-w-[600px]">
         <thead>
           <tr className="border-b border-[var(--card-border)]">
             <th className="text-left py-3 px-4 text-sm font-medium text-[var(--foreground-muted)]">

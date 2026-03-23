@@ -77,7 +77,7 @@ export function TeamSettings() {
             </div>
             <Button onClick={() => setInviteModalOpen(true)}>
               <UserPlus size={18} className="mr-2" />
-              Invite User
+              Register User
             </Button>
           </div>
 

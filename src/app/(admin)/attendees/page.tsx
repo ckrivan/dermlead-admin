@@ -129,6 +129,8 @@ export default function AttendeesPage() {
     { key: "title", label: "Title" },
     { key: "credentials", label: "Credentials" },
     { key: "city_state", label: "City / State" },
+    { key: "address", label: "Street Address" },
+    { key: "postal_code", label: "Postal Code" },
     { key: "npi", label: "NPI Number" },
     { key: "groups", label: "Groups" },
     { key: "status", label: "Check-in Status" },
@@ -188,13 +190,20 @@ export default function AttendeesPage() {
     credentials: "",
     title: "",
     badge_type: "attendee",
+    npi_number: "",
+    street_address: "",
+    street_address_2: "",
+    city: "",
+    state: "",
+    postal_code: "",
   });
 
   // Roster search error state
   const [rosterError, setRosterError] = useState<string | null>(null);
 
-  // Refetch function for real-time updates
-  const refetchAttendees = useCallback(async () => {
+  // Refetch function for real-time updates (stable ref to avoid subscription churn)
+  const refetchAttendeesRef = useRef<(() => Promise<void>) | undefined>(undefined);
+  refetchAttendeesRef.current = async () => {
     if (!selectedEventId) return;
     try {
       const attendeesData = await getAttendeesWithGroups(selectedEventId);
@@ -202,7 +211,11 @@ export default function AttendeesPage() {
     } catch (error) {
       console.error("Error refetching attendees:", error);
     }
-  }, [selectedEventId]);
+  };
+
+  const refetchAttendees = useCallback(async () => {
+    await refetchAttendeesRef.current?.();
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -241,6 +254,8 @@ export default function AttendeesPage() {
 
     const supabase = createClient();
     const channelName = `admin-attendees:${selectedEventId}`;
+    let debounceTimer: ReturnType<typeof setTimeout>;
+    let cancelled = false;
 
     const channel = supabase
       .channel(channelName)
@@ -253,9 +268,13 @@ export default function AttendeesPage() {
           filter: `event_id=eq.${selectedEventId}`,
         },
         (payload: { eventType: string }) => {
+          if (cancelled) return;
           console.log("Attendee change detected:", payload.eventType);
-          // Refetch to get updated data with groups
-          refetchAttendees();
+          // Debounce rapid changes (e.g. bulk imports) to avoid hammering the DB
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            if (!cancelled) refetchAttendeesRef.current?.();
+          }, 500);
         },
       )
       .subscribe((status: string) => {
@@ -267,10 +286,11 @@ export default function AttendeesPage() {
 
     // Cleanup subscription on unmount or eventId change
     return () => {
-      console.log(`Unsubscribing from ${channelName}`);
+      cancelled = true;
+      clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
-  }, [selectedEventId, refetchAttendees]);
+  }, [selectedEventId]);
 
   // Filter attendees
   const filteredAttendees = attendees.filter((attendee) => {
@@ -311,12 +331,11 @@ export default function AttendeesPage() {
     const colors: Record<string, string> = {
       attendee: "bg-gray-500/20 text-gray-600",
       industry: "bg-indigo-500/20 text-indigo-600",
-      vip: "bg-purple-500/20 text-purple-600",
       speaker: "bg-blue-500/20 text-blue-600",
       exhibitor: "bg-green-500/20 text-green-600",
       sponsor: "bg-amber-500/20 text-amber-600",
-      staff: "bg-cyan-500/20 text-cyan-600",
-      press: "bg-pink-500/20 text-pink-600",
+      leadership: "bg-purple-500/20 text-purple-600",
+      organiser: "bg-cyan-500/20 text-cyan-600",
     };
     return colors[type] || "bg-gray-500/20 text-gray-600";
   };
@@ -401,6 +420,12 @@ export default function AttendeesPage() {
       credentials: attendee.credentials || "",
       title: attendee.title || "",
       badge_type: attendee.badge_type || "attendee",
+      npi_number: attendee.npi_number || "",
+      street_address: attendee.street_address || "",
+      street_address_2: attendee.street_address_2 || "",
+      city: attendee.city || "",
+      state: attendee.state || "",
+      postal_code: attendee.postal_code || "",
     });
     setOpenMoreMenu(null);
     setOpenMoreMenuRect(null);
@@ -420,6 +445,12 @@ export default function AttendeesPage() {
         credentials: editForm.credentials || null,
         title: editForm.title || null,
         badge_type: editForm.badge_type,
+        npi_number: editForm.npi_number || null,
+        street_address: editForm.street_address || null,
+        street_address_2: editForm.street_address_2 || null,
+        city: editForm.city || null,
+        state: editForm.state || null,
+        postal_code: editForm.postal_code || null,
       });
       await refetchAttendees();
       setEditAttendee(null);
@@ -571,31 +602,39 @@ export default function AttendeesPage() {
   const handleExport = () => {
     const csvContent = [
       [
-        "Name",
+        "First Name",
+        "Last Name",
         "Credentials",
         "Email",
         "Phone",
         "Specialty",
         "Institution",
         "NPI",
-        "Badge Type",
-        "Groups",
+        "Street Address",
+        "Street Address 2",
         "City",
         "State",
+        "Postal Code",
+        "Badge Type",
+        "Groups",
         "Checked In",
       ],
       ...filteredAttendees.map((a) => [
-        a.full_name,
+        a.first_name,
+        a.last_name,
         a.credentials || "",
         a.email,
         a.phone || "",
         a.specialty || "",
         a.institution || "",
         a.npi_number || "",
-        a.badge_type,
-        a.groups.map((g) => g.name).join(", "),
+        a.street_address || "",
+        a.street_address_2 || "",
         a.city || "",
         a.state || "",
+        a.postal_code || "",
+        a.badge_type,
+        a.groups.map((g) => g.name).join(", "),
         a.checked_in_at
           ? format(parseISO(a.checked_in_at), "yyyy-MM-dd HH:mm")
           : "",
@@ -614,7 +653,7 @@ export default function AttendeesPage() {
         subtitle="Manage event attendees and registrations"
       />
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)]" />
@@ -922,7 +961,7 @@ export default function AttendeesPage() {
             {/* Attendees Table */}
             <Card>
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-[900px]">
                   <thead>
                     <tr className="border-b border-[var(--card-border)]">
                       <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
@@ -961,6 +1000,16 @@ export default function AttendeesPage() {
                       {visibleColumns.has("city_state") && (
                         <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
                           City / State
+                        </th>
+                      )}
+                      {visibleColumns.has("address") && (
+                        <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
+                          Street Address
+                        </th>
+                      )}
+                      {visibleColumns.has("postal_code") && (
+                        <th className="text-left p-4 text-sm font-medium text-[var(--foreground-muted)]">
+                          Postal Code
                         </th>
                       )}
                       {visibleColumns.has("npi") && (
@@ -1081,6 +1130,27 @@ export default function AttendeesPage() {
                                 <span className="text-[var(--foreground-muted)]">
                                   —
                                 </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.has("address") && (
+                            <td className="p-4 text-sm text-[var(--foreground)]">
+                              {attendee.street_address ? (
+                                <div>
+                                  <div>{attendee.street_address}</div>
+                                  {attendee.street_address_2 && (
+                                    <div className="text-[var(--foreground-muted)]">{attendee.street_address_2}</div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-[var(--foreground-muted)]">—</span>
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.has("postal_code") && (
+                            <td className="p-4 text-sm text-[var(--foreground)]">
+                              {attendee.postal_code || (
+                                <span className="text-[var(--foreground-muted)]">—</span>
                               )}
                             </td>
                           )}
@@ -1284,7 +1354,7 @@ export default function AttendeesPage() {
                 <div className="flex-1 h-px bg-[var(--card-border)]" />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
                     First Name *
@@ -1328,7 +1398,7 @@ export default function AttendeesPage() {
                   placeholder="email@example.com"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
                     Phone
@@ -1362,7 +1432,7 @@ export default function AttendeesPage() {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
                     Credentials
@@ -1392,7 +1462,7 @@ export default function AttendeesPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
                     Specialty
@@ -1464,7 +1534,7 @@ export default function AttendeesPage() {
                   placeholder="Suite, unit, etc."
                 />
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
                     City
@@ -1602,7 +1672,7 @@ export default function AttendeesPage() {
                       <code className="bg-[var(--input-bg)] px-1 rounded">
                         badge_type
                       </code>{" "}
-                      - Optional (attendee, industry, vip, speaker, etc.)
+                      - Optional (attendee, industry, speaker, organiser, etc.)
                     </li>
                     <li>
                       <code className="bg-[var(--input-bg)] px-1 rounded">
@@ -1786,15 +1856,7 @@ export default function AttendeesPage() {
             <div className="p-6 flex flex-col items-center gap-4">
               <div className="qr-modal-print bg-white p-4 rounded-lg">
                 <QRCodeSVG
-                  value={JSON.stringify(
-                    qrAttendee.qr_data && Object.keys(qrAttendee.qr_data).length > 0
-                      ? qrAttendee.qr_data
-                      : {
-                          firstName: qrAttendee.first_name,
-                          lastName: qrAttendee.last_name,
-                          email: qrAttendee.email,
-                        },
-                  )}
+                  value={JSON.stringify({ attendeeId: qrAttendee.id })}
                   size={200}
                   level="M"
                 />
@@ -1894,7 +1956,7 @@ export default function AttendeesPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
                     First Name
@@ -1937,7 +1999,7 @@ export default function AttendeesPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
                     Phone
@@ -1967,7 +2029,7 @@ export default function AttendeesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
                     Specialty
@@ -2008,6 +2070,91 @@ export default function AttendeesPage() {
                   }
                   className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  NPI Number
+                </label>
+                <input
+                  type="text"
+                  value={editForm.npi_number}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, npi_number: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Street Address
+                </label>
+                <input
+                  type="text"
+                  value={editForm.street_address}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, street_address: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Street Address 2
+                </label>
+                <input
+                  type="text"
+                  value={editForm.street_address_2}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, street_address_2: e.target.value })
+                  }
+                  placeholder="Apt, suite, unit, etc."
+                  className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.city}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, city: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.state}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, state: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    Postal Code
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.postal_code}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, postal_code: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                  />
+                </div>
               </div>
             </div>
 

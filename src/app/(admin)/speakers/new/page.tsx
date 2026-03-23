@@ -251,9 +251,7 @@ function NewSpeakerForm() {
                       {[
                         { value: 'faculty', label: 'Faculty' },
                         { value: 'leader', label: 'Leader' },
-                        { value: 'bci_staff', label: 'BCI Staff' },
-                        { value: 'industry', label: 'Industry' },
-                        { value: 'guest', label: 'Guest' },
+                        { value: 'organiser', label: 'Organizer' },
                       ].map((opt) => (
                         <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
                           <input

@@ -19,10 +19,14 @@ import {
   ChevronsUpDown,
   CreditCard,
   Target,
+  Shield,
+  HelpCircle,
+  LifeBuoy,
+  X,
 } from 'lucide-react'
-import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEvent } from '@/contexts/EventContext'
+import { useSidebar } from '@/contexts/SidebarContext'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -32,9 +36,11 @@ const navigation = [
   { name: 'Badges', href: '/badges', icon: CreditCard },
   { name: 'Faculty', href: '/speakers', icon: Users },
   { name: 'Sessions', href: '/sessions', icon: Presentation },
-  { name: 'Groups', href: '/groups', icon: UsersRound },
   { name: 'Industry Partners', href: '/industry-partners', icon: Building2 },
   { name: 'Announcements', href: '/announcements', icon: Megaphone },
+  { name: 'Moderation', href: '/reports', icon: Shield },
+  { name: 'FAQ', href: '/faq', icon: HelpCircle },
+  { name: 'Support', href: '/support-requests', icon: LifeBuoy },
   { name: 'Branding', href: '/branding', icon: Palette },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
@@ -44,114 +50,145 @@ export function Sidebar() {
   const router = useRouter()
   const { signOut } = useAuth()
   const { selectedEvent, hasManyEvents, setShowPicker } = useEvent()
-  const [collapsed, setCollapsed] = useState(false)
+  const { isOpen, isCollapsed, isMobile, close, toggleCollapse } = useSidebar()
 
   const handleSignOut = async () => {
     await signOut()
     router.push('/login')
   }
 
-  return (
-    <aside
-      className={`fixed left-0 top-0 h-screen bg-gradient-to-b from-[var(--sidebar-gradient-from)] to-[var(--sidebar-gradient-to)] shadow-lg transition-all duration-300 ${
-        collapsed ? 'w-16' : 'w-64'
-      }`}
-    >
-      {/* Logo / Brand */}
-      <div className="flex h-16 items-center justify-between px-4 border-b border-white/20">
-        {!collapsed ? (
-          <div className="flex items-center gap-2">
-            <img src="/images/converge-icon.png" alt="Converge" className="w-8 h-8" />
-            <span className="text-xl font-bold text-white">
-              Converge
-            </span>
-          </div>
-        ) : (
-          <img src="/images/converge-icon.png" alt="Converge" className="w-8 h-8" />
-        )}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-2 rounded-lg hover:bg-white/10 text-white/70 transition-colors"
-        >
-          {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-        </button>
-      </div>
+  const handleNavClick = () => {
+    if (isMobile) close()
+  }
 
-      {/* Event indicator */}
-      {selectedEvent && (
-        <div className="px-3 py-3 border-b border-white/20">
-          {collapsed ? (
-            <button
-              onClick={() => hasManyEvents && setShowPicker(true)}
-              className="flex w-full justify-center p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-              title={selectedEvent.name}
-            >
-              <Calendar size={18} className="text-white/80" />
-            </button>
-          ) : (
-            <div className="space-y-1">
-              <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wider px-1">
-                Current Event
-              </p>
-              <button
-                onClick={() => hasManyEvents && setShowPicker(true)}
-                className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 transition-colors ${
-                  hasManyEvents
-                    ? 'hover:bg-white/10 cursor-pointer'
-                    : 'cursor-default'
-                }`}
-                disabled={!hasManyEvents}
-              >
-                <span className="flex-1 text-left text-sm font-medium text-white truncate">
-                  {selectedEvent.name}
-                </span>
-                {hasManyEvents && (
-                  <ChevronsUpDown size={14} className="shrink-0 text-white/60" />
-                )}
-              </button>
-            </div>
-          )}
-        </div>
+  // On mobile: show/hide via translate. On desktop: always visible.
+  const sidebarWidth = isMobile ? 'w-64' : isCollapsed ? 'w-16' : 'w-64'
+  const collapsed = !isMobile && isCollapsed
+
+  return (
+    <>
+      {/* Mobile backdrop */}
+      {isMobile && isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+          onClick={close}
+        />
       )}
 
-      {/* Navigation */}
-      <nav className="flex-1 px-2 py-4 space-y-1">
-        {navigation.map((item) => {
-          const isActive = pathname.startsWith(item.href)
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                isActive
-                  ? 'bg-white/20 text-white'
-                  : 'text-white/70 hover:bg-white/10 hover:text-white'
-              }`}
-              title={collapsed ? item.name : undefined}
+      <aside
+        className={`fixed left-0 top-0 h-screen bg-gradient-to-b from-[var(--sidebar-gradient-from)] to-[var(--sidebar-gradient-to)] shadow-lg transition-all duration-300 ${sidebarWidth} ${
+          isMobile
+            ? `z-50 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`
+            : 'z-30'
+        }`}
+      >
+        {/* Logo / Brand */}
+        <div className="flex h-16 items-center justify-between px-4 border-b border-white/20">
+          {!collapsed ? (
+            <div className="flex items-center gap-2">
+              <img src="/images/converge-icon.png" alt="Converge" className="w-8 h-8" />
+              <span className="text-xl font-bold text-white">
+                Converge
+              </span>
+            </div>
+          ) : (
+            <img src="/images/converge-icon.png" alt="Converge" className="w-8 h-8" />
+          )}
+          {isMobile ? (
+            <button
+              onClick={close}
+              className="p-2 rounded-lg hover:bg-white/10 text-white/70 transition-colors"
             >
-              <item.icon size={20} />
-              {!collapsed && <span className="font-medium">{item.name}</span>}
-            </Link>
-          )
-        })}
-      </nav>
+              <X size={20} />
+            </button>
+          ) : (
+            <button
+              onClick={toggleCollapse}
+              className="p-2 rounded-lg hover:bg-white/10 text-white/70 transition-colors"
+            >
+              {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+            </button>
+          )}
+        </div>
 
-      {/* Bottom section */}
-      <div className="px-2 py-4 border-t border-white/20">
-        <button
-          onClick={handleSignOut}
-          className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white transition-colors"
-          title={collapsed ? 'Sign Out' : undefined}
-        >
-          <LogOut size={20} />
-          {!collapsed && <span className="font-medium">Sign Out</span>}
-        </button>
-        {!collapsed && (
-          <p className="px-3 mt-3 text-[10px] text-white/40 font-mono">
-            v{process.env.NEXT_PUBLIC_APP_VERSION} · build {process.env.NEXT_PUBLIC_BUILD_ID}
-          </p>
+        {/* Event indicator */}
+        {selectedEvent && (
+          <div className="px-3 py-3 border-b border-white/20">
+            {collapsed ? (
+              <button
+                onClick={() => hasManyEvents && setShowPicker(true)}
+                className="flex w-full justify-center p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                title={selectedEvent.name}
+              >
+                <Calendar size={18} className="text-white/80" />
+              </button>
+            ) : (
+              <div className="space-y-1">
+                <p className="text-white/50 text-[10px] font-semibold uppercase tracking-wider px-1">
+                  Current Event
+                </p>
+                <button
+                  onClick={() => hasManyEvents && setShowPicker(true)}
+                  className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 transition-colors ${
+                    hasManyEvents
+                      ? 'hover:bg-white/10 cursor-pointer'
+                      : 'cursor-default'
+                  }`}
+                  disabled={!hasManyEvents}
+                >
+                  <span className="flex-1 text-left text-sm font-medium text-white truncate">
+                    {selectedEvent.name}
+                  </span>
+                  {hasManyEvents && (
+                    <ChevronsUpDown size={14} className="shrink-0 text-white/60" />
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
         )}
-      </div>
-    </aside>
+
+        {/* Navigation */}
+        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+          {navigation.map((item) => {
+            const isActive = pathname.startsWith(item.href)
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                prefetch={false}
+                onClick={handleNavClick}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-white/20 text-white'
+                    : 'text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
+                title={collapsed ? item.name : undefined}
+              >
+                <item.icon size={20} />
+                {!collapsed && <span className="font-medium">{item.name}</span>}
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* Bottom section */}
+        <div className="px-2 py-4 border-t border-white/20">
+          <button
+            onClick={handleSignOut}
+            className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+            title={collapsed ? 'Sign Out' : undefined}
+          >
+            <LogOut size={20} />
+            {!collapsed && <span className="font-medium">Sign Out</span>}
+          </button>
+          {!collapsed && (
+            <p className="px-3 mt-3 text-[10px] text-white/40 font-mono">
+              v{process.env.NEXT_PUBLIC_APP_VERSION} · build {process.env.NEXT_PUBLIC_BUILD_ID}
+            </p>
+          )}
+        </div>
+      </aside>
+    </>
   )
 }

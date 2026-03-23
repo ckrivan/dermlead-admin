@@ -510,12 +510,9 @@ export async function bulkCreateAttendees(
       continue;
     }
 
-    // Generate QR data (JSON object)
-    const qrData = {
-      firstName,
-      lastName,
-      email: row.email.trim().toLowerCase(),
-    };
+    // QR data will be set after insert (needs attendee ID)
+    // Placeholder — will be updated below
+    const qrData = null;
 
     // Auto-link to profile if email matches
     const attendeeEmail = row.email.trim().toLowerCase();
@@ -559,6 +556,12 @@ export async function bulkCreateAttendees(
       }
       continue;
     }
+
+    // Update QR data with UUID-only payload (privacy: no PII in QR codes)
+    await supabase
+      .from("attendees")
+      .update({ qr_data: { attendeeId: createdAttendee.id } })
+      .eq("id", createdAttendee.id);
 
     created++;
 
@@ -624,9 +627,7 @@ export const BADGE_TYPES = [
   { value: "exhibitor", label: "Exhibitor" },
   { value: "sponsor", label: "Sponsor" },
   { value: "leadership", label: "Leadership" },
-  { value: "staff", label: "Staff" },
-  { value: "vip", label: "VIP" },
-  { value: "press", label: "Press" },
+  { value: "organiser", label: "Organizer" },
 ];
 
 // Alias for backward compatibility

@@ -76,10 +76,8 @@ export const BADGE_TYPE_LABELS: Record<string, string> = {
   industry: 'INDUSTRY',
   exhibitor: 'EXHIBITOR',
   sponsor: 'SPONSOR',
-  leader: 'LEADERSHIP',
-  staff: 'BCI STAFF',
-  vip: 'VIP',
-  press: 'PRESS',
+  leadership: 'LEADERSHIP',
+  organiser: 'ORGANISER',
 }
 
 // State abbreviation normalization

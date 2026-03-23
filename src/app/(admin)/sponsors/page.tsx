@@ -271,9 +271,9 @@ export default function SponsorsPage() {
     <>
       <Header title="Sponsors" subtitle="Manage sponsors for your events" />
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         {/* Event Selector & Actions */}
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
             <label className="text-sm text-[var(--foreground-muted)]">
               Event:
@@ -567,7 +567,7 @@ export default function SponsorsPage() {
                 <label className="block text-sm text-[var(--foreground-muted)] mb-2">
                   Sponsor Tier *
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {SPONSOR_TIERS.map((tier) => (
                     <button
                       key={tier.value}
@@ -591,7 +591,7 @@ export default function SponsorsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-[var(--foreground-muted)] mb-1">
                     Booth Number

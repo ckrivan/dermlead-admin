@@ -220,7 +220,7 @@ export async function generateBadgePDF(
     }
   }
 
-  // Pre-generate all QR codes
+  // Pre-generate all QR codes (UUID only — scanner does DB lookup)
   const qrCodes: string[] = []
   const BATCH_SIZE = 20
   for (let i = 0; i < attendees.length; i += BATCH_SIZE) {
@@ -228,14 +228,7 @@ export async function generateBadgePDF(
     const results = await Promise.all(
       batch.map((a) =>
         generateQRDataURL({
-          firstName: a.first_name,
-          lastName: a.last_name,
-          credentials: a.credentials || undefined,
-          institution: a.institution || undefined,
-          specialty: a.specialty || undefined,
-          npiNumber: a.npi_number || undefined,
-          city: a.city || undefined,
-          state: a.state || undefined,
+          attendeeId: a.id,
         })
       )
     )
@@ -243,32 +236,23 @@ export async function generateBadgePDF(
     onProgress?.(Math.min(i + BATCH_SIZE, attendees.length), attendees.length)
   }
 
-  // Generate pages: 6 unique attendees per sheet, front + back (column-flipped) for duplex
-  const totalSheets = Math.ceil(attendees.length / BADGES_PER_PAGE)
+  // Generate pages: 3 attendees per page, same person in both columns for fold-over
+  const ATTENDEES_PER_PAGE = 3
 
-  for (let sheetIdx = 0; sheetIdx < totalSheets; sheetIdx++) {
-    if (sheetIdx > 0) doc.addPage()
+  const totalPages = Math.ceil(attendees.length / ATTENDEES_PER_PAGE)
 
-    const startIdx = sheetIdx * BADGES_PER_PAGE
-    const batch = attendees.slice(startIdx, startIdx + BADGES_PER_PAGE)
+  for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+    if (pageIdx > 0) doc.addPage()
 
-    // ─── FRONT PAGE ───
+    const startIdx = pageIdx * ATTENDEES_PER_PAGE
+    const batch = attendees.slice(startIdx, startIdx + ATTENDEES_PER_PAGE)
+
     for (let idx = 0; idx < batch.length; idx++) {
-      const rowIdx = Math.floor(idx / 2)
-      const colIdx = idx % 2
-      const colX = COL_X[colIdx]
-      const yTop = TOP_MARGIN + rowIdx * BADGE_H
-      drawBadge(doc, colX, yTop, batch[idx], logoBase64, qrCodes[startIdx + idx], tv)
-    }
-
-    // ─── BACK PAGE (columns flipped for duplex alignment) ───
-    doc.addPage()
-    for (let idx = 0; idx < batch.length; idx++) {
-      const rowIdx = Math.floor(idx / 2)
-      const colIdx = 1 - (idx % 2) // FLIPPED
-      const colX = COL_X[colIdx]
-      const yTop = TOP_MARGIN + rowIdx * BADGE_H
-      drawBadge(doc, colX, yTop, batch[idx], logoBase64, qrCodes[startIdx + idx], tv)
+      const yTop = TOP_MARGIN + idx * BADGE_H
+      const qrIdx = startIdx + idx
+      // Draw same person in both columns (fold-over design)
+      drawBadge(doc, COL_X[0], yTop, batch[idx], logoBase64, qrCodes[qrIdx], tv)
+      drawBadge(doc, COL_X[1], yTop, batch[idx], logoBase64, qrCodes[qrIdx], tv)
     }
   }
 

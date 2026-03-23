@@ -2,18 +2,35 @@
 
 import { ReactNode } from 'react'
 import { Sidebar } from './Sidebar'
+import { SidebarProvider, useSidebar } from '@/contexts/SidebarContext'
 
 interface AdminLayoutProps {
   children: ReactNode
 }
 
-export function AdminLayout({ children }: AdminLayoutProps) {
+function LayoutShell({ children }: { children: ReactNode }) {
+  const { isCollapsed, isMobile } = useSidebar()
+
+  const mainMargin = isMobile
+    ? 'ml-0'
+    : isCollapsed
+      ? 'ml-16'
+      : 'ml-64'
+
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <Sidebar />
-      <main className="ml-64 transition-all duration-300">
+      <main className={`${mainMargin} transition-all duration-300`}>
         {children}
       </main>
     </div>
+  )
+}
+
+export function AdminLayout({ children }: AdminLayoutProps) {
+  return (
+    <SidebarProvider>
+      <LayoutShell>{children}</LayoutShell>
+    </SidebarProvider>
   )
 }

@@ -8,13 +8,16 @@ export interface UserWithEmail extends Profile {
 export interface InviteUserData {
   email: string
   full_name: string
-  role: 'admin' | 'staff' | 'leadership' | 'rep' | 'attendee'
+  role: 'admin' | 'organiser' | 'leadership' | 'rep' | 'attendee'
   organization_id: string
+  password?: string
+  event_id?: string
+  badge_type?: string
 }
 
 export interface UpdateUserData {
   full_name?: string
-  role?: 'admin' | 'staff' | 'leadership' | 'rep' | 'attendee'
+  role?: 'admin' | 'organiser' | 'leadership' | 'rep' | 'attendee'
   is_active?: boolean
 }
 
@@ -28,7 +31,7 @@ export async function getOrganizationUsers(organizationId: string): Promise<User
     .from('profiles')
     .select('*')
     .eq('organization_id', organizationId)
-    .in('role', ['admin', 'staff', 'leadership', 'rep'])
+    .in('role', ['admin', 'organiser', 'leadership', 'rep'])
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -155,7 +158,7 @@ export async function deleteUser(userId: string): Promise<void> {
  * Change a user's role.
  * Routes through server API to bypass RLS.
  */
-export async function changeUserRole(userId: string, newRole: 'admin' | 'staff' | 'leadership' | 'rep' | 'attendee'): Promise<void> {
+export async function changeUserRole(userId: string, newRole: 'admin' | 'organiser' | 'leadership' | 'rep' | 'attendee'): Promise<void> {
   const res = await fetch('/api/users', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

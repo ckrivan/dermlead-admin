@@ -12,7 +12,7 @@ export interface Profile {
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
-  role: "admin" | "staff" | "leadership" | "rep" | "attendee";
+  role: "admin" | "organiser" | "leadership" | "rep" | "attendee";
   organization_id: string | null;
   is_active: boolean;
   credentials: string | null;
@@ -27,6 +27,11 @@ export interface Profile {
   twitter_url: string | null;
   contact_shared: boolean;
   personal_email: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  show_email?: boolean;
+  show_phone?: boolean;
+  instagram_url?: string | null;
   invited_by?: string | null;
   invited_at?: string | null;
   last_login_at?: string | null;
@@ -55,6 +60,7 @@ export interface Event {
   show_logo_on_banner: boolean | null;
   custom_url_slug: string | null;
   badge_template?: BadgeTemplateConfig | null;
+  lead_access_days?: number;
   created_at: string;
   updated_at: string;
 }
@@ -151,7 +157,7 @@ export interface Lead {
   id: string;
   organization_id: string;
   event_id: string | null;
-  captured_by: string;
+  captured_by: string | null;
   first_name: string;
   last_name: string;
   work_email: string;
@@ -159,12 +165,18 @@ export interface Lead {
   phone: string | null;
   specialty: string;
   institution: string | null;
+  credentials?: string | null;
+  npi_number?: string | null;
+  city?: string | null;
+  state?: string | null;
   years_in_practice: string | null;
   interest_areas: string[] | null;
   notes: string | null;
   lead_score: number;
   photo_url: string | null;
-  capture_type: string | null; // 'exhibit' or 'product_theater'
+  contact_shared?: boolean;
+  capture_type?: string | null;
+  session_id?: string | null;
   synced_at: string | null;
   created_at: string;
   updated_at: string;
@@ -212,6 +224,7 @@ export interface Announcement {
   reply_to_email: string | null;
   scheduled_at: string | null;
   sent_at: string | null;
+  community_post_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -254,6 +267,27 @@ export interface Sponsor {
   updated_at: string;
 }
 
+export interface ContentReport {
+  id: string;
+  reporter_id: string;
+  content_type: 'post' | 'comment' | 'message' | 'question' | 'photo';
+  content_id: string;
+  reason: 'spam' | 'harassment' | 'inappropriate' | 'misinformation' | 'other';
+  details: string | null;
+  status: 'pending' | 'reviewed' | 'dismissed' | 'actioned';
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  action_taken: 'removed' | 'warned' | 'none' | null;
+  created_at: string;
+  // Joined fields
+  reporter_name?: string;
+  reporter_email?: string;
+  content_title?: string;
+  content_body?: string;
+  content_event_id?: string;
+  content_author_name?: string;
+}
+
 export interface SpeakerMessage {
   id: string;
   event_id: string;
@@ -264,5 +298,27 @@ export interface SpeakerMessage {
   message: string;
   read_at: string | null;
   replied_at: string | null;
+  created_at: string;
+}
+
+export interface Faq {
+  id: string;
+  event_id: string;
+  question: string;
+  answer: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface SupportRequest {
+  id: string;
+  event_id: string | null;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: 'new' | 'in_progress' | 'resolved';
+  resolved_by: string | null;
+  resolved_at: string | null;
   created_at: string;
 }

@@ -43,6 +43,9 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/unauthorized') ||
     pathname.startsWith('/privacy') ||
     pathname.startsWith('/terms') ||
+    pathname === '/support' ||
+    pathname.startsWith('/mfa-verify') ||
+    pathname.startsWith('/mfa-enroll') ||
     pathname === '/'
   ) {
     // If user is logged in and trying to access login, redirect to dashboard
@@ -74,6 +77,13 @@ export async function proxy(request: NextRequest) {
 
   if (!profile || profile.role !== 'admin' || !profile.is_active) {
     return NextResponse.redirect(new URL('/unauthorized', request.url))
+  }
+
+  // Check MFA — if user has TOTP enrolled, require aal2
+  const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aalData?.currentLevel === 'aal1' && aalData?.nextLevel === 'aal2') {
+    // User has MFA enrolled but session is only aal1 — redirect to verify
+    return NextResponse.redirect(new URL('/mfa-verify', request.url))
   }
 
   return supabaseResponse

@@ -224,7 +224,7 @@ export function ComposeAnnouncement({
 
               {/* Category checkboxes */}
               {recipientMode === 'categories' && (
-                <div className="ml-7 grid grid-cols-3 gap-2">
+                <div className="ml-7 grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {availableBadgeTypes.map((bt) => (
                     <label key={bt.value} className="flex items-center gap-2 cursor-pointer">
                       <input

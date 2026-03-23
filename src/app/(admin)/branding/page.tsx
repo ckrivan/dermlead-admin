@@ -199,7 +199,7 @@ export default function BrandingPage() {
     <div className="min-h-screen bg-[var(--background)]">
       <Header title="Branding" />
 
-      <main className="p-6">
+      <main className="p-4 md:p-6">
         {/* Event Selector */}
         <Card className="mb-6">
           <CardBody>

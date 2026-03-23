@@ -41,7 +41,7 @@ function LoginForm() {
     <div className="w-full max-w-md">
       {/* Logo/Brand */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-[var(--foreground)]">DermLead</h1>
+        <img src="/images/converge-logo.png" alt="Converge" className="h-40 mx-auto" />
         <p className="text-[var(--foreground-muted)] mt-2">Admin Panel</p>
       </div>
 

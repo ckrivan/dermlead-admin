@@ -78,7 +78,7 @@ export async function getBadgeTypeCounts(eventId: string): Promise<Record<string
 }
 
 export async function createAnnouncement(
-  announcement: Omit<Announcement, 'id' | 'created_at' | 'updated_at' | 'sent_at'>
+  announcement: Omit<Announcement, 'id' | 'created_at' | 'updated_at' | 'sent_at' | 'community_post_id'>
 ): Promise<Announcement> {
   const supabase = createClient()
 

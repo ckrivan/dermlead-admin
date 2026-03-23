@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardBody, Button } from '@/components/ui'
-import { User, Mail, Save, Key } from 'lucide-react'
+import { User, Mail, Save, Key, ShieldCheck, ShieldOff } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { updateProfile, changePassword } from '@/lib/api/auth'
+import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 
 export function ProfileSettings() {
   const { user, profile, refreshProfile } = useAuth()
+  const router = useRouter()
   const [fullName, setFullName] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -18,11 +21,27 @@ export function ProfileSettings() {
   const [changingPassword, setChangingPassword] = useState(false)
   const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  // MFA state
+  const [mfaEnrolled, setMfaEnrolled] = useState(false)
+  const [mfaLoading, setMfaLoading] = useState(true)
+  const [mfaMessage, setMfaMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [disablingMfa, setDisablingMfa] = useState(false)
+
   useEffect(() => {
     if (profile) {
       setFullName(profile.full_name || '')
     }
   }, [profile])
+
+  useEffect(() => {
+    const checkMfa = async () => {
+      const supabase = createClient()
+      const { data } = await supabase.auth.mfa.listFactors()
+      setMfaEnrolled(!!(data?.totp && data.totp.length > 0))
+      setMfaLoading(false)
+    }
+    checkMfa()
+  }, [])
 
   const handleSaveProfile = async () => {
     if (!user) return
@@ -221,6 +240,87 @@ export function ProfileSettings() {
               {changingPassword ? 'Changing...' : 'Change Password'}
             </Button>
           </div>
+        </CardBody>
+      </Card>
+
+      {/* Two-Factor Authentication */}
+      <Card>
+        <CardBody className="p-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-[var(--foreground)] mb-1">
+                Two-Factor Authentication
+              </h3>
+              <p className="text-sm text-[var(--foreground-muted)]">
+                Add an extra layer of security to your account with TOTP-based 2FA
+              </p>
+            </div>
+            <div className={`p-2 rounded-lg ${mfaEnrolled ? 'bg-green-500/10' : 'bg-[var(--background-tertiary)]'}`}>
+              {mfaEnrolled
+                ? <ShieldCheck size={24} className="text-green-500" />
+                : <ShieldOff size={24} className="text-[var(--foreground-muted)]" />
+              }
+            </div>
+          </div>
+
+          {mfaMessage && (
+            <div
+              className={`mt-4 p-3 rounded-lg text-sm ${
+                mfaMessage.type === 'success'
+                  ? 'bg-green-500/10 border border-green-500/20 text-green-500'
+                  : 'bg-red-500/10 border border-red-500/20 text-red-500'
+              }`}
+            >
+              {mfaMessage.text}
+            </div>
+          )}
+
+          {!mfaLoading && (
+            <div className="mt-4">
+              {mfaEnrolled ? (
+                <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/5 border border-green-500/10">
+                  <span className="text-sm text-green-500 font-medium">
+                    2FA is enabled
+                  </span>
+                  <Button
+                    variant="ghost"
+                    onClick={async () => {
+                      setDisablingMfa(true)
+                      setMfaMessage(null)
+                      try {
+                        const supabase = createClient()
+                        const { data } = await supabase.auth.mfa.listFactors()
+                        if (data?.totp?.[0]) {
+                          const { error } = await supabase.auth.mfa.unenroll({
+                            factorId: data.totp[0].id,
+                          })
+                          if (error) {
+                            setMfaMessage({ type: 'error', text: error.message })
+                          } else {
+                            setMfaEnrolled(false)
+                            setMfaMessage({ type: 'success', text: '2FA has been disabled' })
+                          }
+                        }
+                      } catch {
+                        setMfaMessage({ type: 'error', text: 'Failed to disable 2FA' })
+                      } finally {
+                        setDisablingMfa(false)
+                      }
+                    }}
+                    disabled={disablingMfa}
+                    className="text-red-500 hover:text-red-400"
+                  >
+                    {disablingMfa ? 'Disabling...' : 'Disable 2FA'}
+                  </Button>
+                </div>
+              ) : (
+                <Button onClick={() => router.push('/mfa-enroll')}>
+                  <ShieldCheck size={18} className="mr-2" />
+                  Set Up 2FA
+                </Button>
+              )}
+            </div>
+          )}
         </CardBody>
       </Card>
     </div>

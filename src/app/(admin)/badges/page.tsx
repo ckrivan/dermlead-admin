@@ -450,7 +450,7 @@ export default function BadgesPage() {
 
   if (!selectedEventId) {
     return (
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <h1 className="text-2xl font-bold mb-2">Badges</h1>
         <p className="text-gray-500">Select an event to generate badges.</p>
       </div>
@@ -458,7 +458,7 @@ export default function BadgesPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Badges</h1>
@@ -469,7 +469,7 @@ export default function BadgesPage() {
 
       {/* Template Section */}
       <div className="mb-4 bg-gray-50 border rounded-lg p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             {template ? (
               <>
@@ -578,8 +578,8 @@ export default function BadgesPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4 flex-wrap">
+        <div className="relative flex-1 min-w-0 sm:min-w-[200px] sm:max-w-[320px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -672,7 +672,7 @@ export default function BadgesPage() {
       ) : (
         <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full min-w-[800px] text-left">
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="px-3 py-3 w-10">

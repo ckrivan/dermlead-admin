@@ -274,7 +274,7 @@ export default function SessionsPage() {
     <>
       <Header title="Session Manager" subtitle="Manage your event agenda and sessions" />
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {/* Event Selector */}
         <div className="flex items-center gap-4">
           <label className="text-sm font-medium text-[var(--foreground)]">Event:</label>
@@ -339,8 +339,8 @@ export default function SessionsPage() {
         ) : (
           <>
             {/* Toolbar */}
-            <div className="flex items-center justify-between gap-4 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-3">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 {/* Search */}
                 <div className="relative">
                   <Search
@@ -352,7 +352,7 @@ export default function SessionsPage() {
                     placeholder="Search sessions..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 pr-4 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus)] w-64"
+                    className="pl-10 pr-4 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus)] w-full sm:w-64"
                   />
                 </div>
 

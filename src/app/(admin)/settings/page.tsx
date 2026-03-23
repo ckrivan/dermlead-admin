@@ -22,9 +22,9 @@ export default function SettingsPage() {
     <>
       <Header title="Settings" subtitle="Configure your admin preferences" />
 
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         {/* Tabs */}
-        <div className="flex gap-1 p-1 mb-6 bg-[var(--background-secondary)] rounded-lg w-fit">
+        <div className="flex gap-1 p-1 mb-6 bg-[var(--background-secondary)] rounded-lg w-fit overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}

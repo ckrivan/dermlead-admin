@@ -132,26 +132,41 @@ export default function LeadsPage() {
   }
 
   function exportCSV() {
-    const rows = filteredLeads.map((l) => ({
-      first_name: l.first_name,
-      last_name: l.last_name,
-      work_email: l.work_email,
-      personal_email: l.personal_email || '',
-      phone: l.phone || '',
-      specialty: l.specialty,
-      institution: l.institution || '',
-      years_in_practice: l.years_in_practice || '',
-      interest_areas: (l.interest_areas || []).join('; '),
-      notes: l.notes || '',
-      lead_score: l.lead_score,
-      capture_type: l.capture_type || '',
-      captured_at: l.created_at,
-    }))
-    const headers = Object.keys(rows[0] || {})
+    // Pfizer industry standard format
+    const headers = [
+      'First Name',
+      'Last Name',
+      'Specialty',
+      'Credentials',
+      'Business Address',
+      'City',
+      'State',
+      'Zipcode',
+      'NPI',
+      'Email',
+      'Phone',
+    ]
+    const rows = filteredLeads.map((l) => {
+      // Include email/phone only if attendee opted in (contact_shared)
+      const showContact = l.contact_shared !== false
+      return [
+        l.first_name,
+        l.last_name,
+        l.specialty || '',
+        l.credentials || '',
+        l.institution || '',
+        l.city || '',
+        l.state || '',
+        '', // Zipcode - not stored on leads
+        l.npi_number || '',
+        showContact ? l.work_email : '',
+        showContact ? (l.phone || '') : '',
+      ]
+    })
     const csv = [
       headers.join(','),
-      ...rows.map((r) =>
-        headers.map((h) => `"${String((r as Record<string, unknown>)[h] ?? '').replace(/"/g, '""')}"`).join(',')
+      ...rows.map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
       ),
     ].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -181,7 +196,7 @@ export default function LeadsPage() {
     return (
       <>
         <Header title="Leads" />
-        <div className="p-6">
+        <div className="p-4 md:p-6">
           <Card>
             <CardBody>
               <p className="text-gray-500 text-center py-8">
@@ -197,9 +212,9 @@ export default function LeadsPage() {
   return (
     <>
       <Header title="Leads" />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         {/* Stats bar */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">
               {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''}
@@ -300,7 +315,7 @@ export default function LeadsPage() {
           /* Table */
           <Card>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[900px] text-sm">
                 <thead>
                   <tr className="border-b bg-gray-50">
                     {selectMode && (

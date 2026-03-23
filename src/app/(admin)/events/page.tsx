@@ -107,7 +107,7 @@ export default function EventsPage() {
     <>
       <Header title="Events" subtitle="Manage your conventions and conferences" />
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         {/* Controls */}
         <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
           <div className="flex gap-4 flex-1 max-w-2xl">
@@ -278,7 +278,7 @@ export default function EventsPage() {
         ) : (
           <Card>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[700px]">
                 <thead>
                   <tr className="border-b border-[var(--card-border)]">
                     <th className="px-4 py-3 text-left text-sm font-medium text-[var(--foreground)]">
