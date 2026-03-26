@@ -75,7 +75,7 @@ export default function MFAEnrollPage() {
           Set Up Two-Factor Authentication
         </h1>
         <p className="text-[var(--foreground-muted)] text-center mb-6 text-sm">
-          Scan the QR code with your authenticator app (Google Authenticator, Authy, 1Password, etc.)
+          Two-factor authentication is required. Scan the QR code with your authenticator app (Google Authenticator, Authy, 1Password, etc.)
         </p>
 
         {!qrCode ? (
@@ -139,11 +139,14 @@ export default function MFAEnrollPage() {
         )}
 
         <button
-          onClick={() => router.push('/settings')}
+          onClick={async () => {
+            await supabase.auth.signOut()
+            router.push('/login')
+          }}
           className="mt-4 w-full flex items-center justify-center gap-2 text-[var(--foreground-muted)] text-sm hover:text-[var(--foreground)] transition-colors"
         >
           <ArrowLeft size={14} />
-          Back to Settings
+          Sign out
         </button>
       </div>
     </div>

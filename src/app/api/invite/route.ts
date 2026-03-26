@@ -99,20 +99,36 @@ export async function POST(request: NextRequest) {
 
   // If an event was selected, create an attendee record so they're already registered
   if (event_id) {
-    const { error: attendeeError } = await admin
-      .from('attendees')
-      .upsert({
-        organization_id,
-        event_id,
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        badge_type: badge_type || 'attendee',
-        profile_id: userId,
-      }, { onConflict: 'event_id,email', ignoreDuplicates: false })
+    try {
+      // Check if attendee already exists for this event (case-insensitive email)
+      const { data: existingAttendee } = await admin
+        .from('attendees')
+        .select('id')
+        .eq('event_id', event_id)
+        .ilike('email', email)
+        .maybeSingle()
 
-    if (attendeeError) {
-      console.error('[invite] Failed to create attendee record:', attendeeError.message)
+      if (existingAttendee) {
+        // Link existing attendee to the new profile
+        await admin
+          .from('attendees')
+          .update({ profile_id: userId })
+          .eq('id', existingAttendee.id)
+      } else {
+        await admin
+          .from('attendees')
+          .insert({
+            organization_id,
+            event_id,
+            first_name: firstName,
+            last_name: lastName,
+            email,
+            badge_type: badge_type || 'attendee',
+            profile_id: userId,
+          })
+      }
+    } catch (err) {
+      console.error('[invite] Failed to create attendee record:', err)
       // Don't fail the whole operation — user + profile were created successfully
     }
   }

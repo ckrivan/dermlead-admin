@@ -79,11 +79,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/unauthorized', request.url))
   }
 
-  // Check MFA — if user has TOTP enrolled, require aal2
+  // Check MFA — mandatory for all admin users
   const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
   if (aalData?.currentLevel === 'aal1' && aalData?.nextLevel === 'aal2') {
     // User has MFA enrolled but session is only aal1 — redirect to verify
     return NextResponse.redirect(new URL('/mfa-verify', request.url))
+  }
+  if (aalData?.currentLevel === 'aal1' && aalData?.nextLevel === 'aal1') {
+    // User has NO MFA enrolled — redirect to enroll (mandatory)
+    return NextResponse.redirect(new URL('/mfa-enroll', request.url))
   }
 
   return supabaseResponse

@@ -1,5 +1,221 @@
-// CSV parsing and generation utilities
+// CSV and Excel parsing and generation utilities
 // Supports both our format and Whova's export format
+
+import type { AttendeeCSVRow } from '@/lib/api/attendees'
+
+// ============================================================================
+// State normalization map
+// ============================================================================
+
+const STATE_MAP: Record<string, string> = {
+  'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR',
+  'california': 'CA', 'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE',
+  'florida': 'FL', 'georgia': 'GA', 'hawaii': 'HI', 'idaho': 'ID',
+  'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA', 'kansas': 'KS',
+  'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+  'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS',
+  'missouri': 'MO', 'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV',
+  'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY',
+  'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH', 'oklahoma': 'OK',
+  'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+  'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT',
+  'vermont': 'VT', 'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV',
+  'wisconsin': 'WI', 'wyoming': 'WY', 'district of columbia': 'DC',
+  // Common abbreviation variants
+  'dc': 'DC', 'd.c.': 'DC',
+}
+
+/**
+ * Normalize a US state name or abbreviation to a 2-letter code.
+ * Returns the original string if not recognized (e.g., international locations).
+ */
+export function normalizeState(input: string): string {
+  if (!input) return ''
+  const trimmed = input.trim()
+  if (!trimmed) return ''
+
+  // Already a 2-letter code
+  if (/^[A-Za-z]{2}$/.test(trimmed)) {
+    const upper = trimmed.toUpperCase()
+    // Verify it's a valid state abbreviation
+    const validAbbrevs = new Set(Object.values(STATE_MAP))
+    if (validAbbrevs.has(upper)) return upper
+    return upper // Return uppercased even if not in our map
+  }
+
+  // Try full name lookup
+  const lower = trimmed.toLowerCase()
+  if (STATE_MAP[lower]) return STATE_MAP[lower]
+
+  // Return original trimmed value for international locations
+  return trimmed
+}
+
+/**
+ * Validate and clean an NPI number. Returns null for invalid values.
+ * Valid NPI: exactly 10 digits.
+ */
+export function cleanNPI(input: string): string | null {
+  if (!input) return null
+  const trimmed = input.trim()
+  if (!trimmed) return null
+
+  // Filter out common placeholder/invalid values
+  const lower = trimmed.toLowerCase()
+  if (lower === 'n/a' || lower === 'na' || lower === 'none' || lower === '0') return null
+
+  // Strip non-digit characters
+  const digitsOnly = trimmed.replace(/\D/g, '')
+
+  // Must be exactly 10 digits
+  if (digitsOnly.length !== 10) return null
+
+  // Filter out obvious placeholders (all zeros, all same digit)
+  if (/^(.)\1{9}$/.test(digitsOnly)) return null
+
+  return digitsOnly
+}
+
+/**
+ * Normalize specialty to title case and fix common inconsistencies.
+ */
+export function normalizeSpecialty(input: string): string {
+  if (!input) return ''
+  // Collapse multiple spaces
+  let cleaned = input.trim().replace(/\s+/g, ' ')
+  if (!cleaned) return ''
+
+  // Title case: capitalize first letter of each word
+  cleaned = cleaned.replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/\bAnd\b/g, 'and')
+    .replace(/\bOf\b/g, 'of')
+    .replace(/\bIn\b/g, 'in')
+
+  return cleaned
+}
+
+/**
+ * Parse an Excel file (.xlsx/.xls) into an array of row objects.
+ * Uses dynamic import of xlsx library.
+ */
+export async function parseExcelFile(file: File): Promise<Record<string, string>[]> {
+  const XLSX = await import('xlsx')
+  const buffer = await file.arrayBuffer()
+  const workbook = XLSX.read(buffer, { type: 'array' })
+  const sheet = workbook.Sheets[workbook.SheetNames[0]]
+  return XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: '' })
+}
+
+/**
+ * Find a header column by fuzzy matching keywords.
+ */
+function findHeader(headers: string[], ...keywords: string[]): string | undefined {
+  return headers.find((h) => {
+    const lower = h.toLowerCase()
+    return keywords.some((k) => lower.includes(k))
+  })
+}
+
+/**
+ * Map raw Excel row data (with human-readable headers) to our internal AttendeeCSVRow format.
+ * Handles both attendee and industry partner Excel templates.
+ */
+export function mapExcelRowToAttendee(
+  headers: string[],
+  row: Record<string, string>,
+  defaultBadgeType: string = 'attendee',
+): AttendeeCSVRow {
+  const get = (col: string | undefined) => col ? String(row[col] ?? '').trim() : ''
+
+  const fnCol = findHeader(headers, 'first name', 'first_name')
+  const lnCol = findHeader(headers, 'last name', 'last_name')
+  const emailCol = findHeader(headers, 'email', 'e-mail')
+  const phoneCol = findHeader(headers, 'phone')
+  const credCol = findHeader(headers, 'credential')
+  const specCol = findHeader(headers, 'specialty', 'speciality')
+  const instCol = findHeader(headers, 'practice', 'institution', 'company', 'organization', 'affiliation')
+  const npiCol = findHeader(headers, 'npi')
+  const titleCol = findHeader(headers, 'title', 'position')
+  const addrCol = findHeader(headers, 'street address')
+  const addr2Col = headers.find((h) => {
+    const lower = h.toLowerCase()
+    return (lower.includes('street address') || lower.includes('address')) && (lower.includes('2') || lower.includes('line 2'))
+  })
+  const cityCol = findHeader(headers, 'city')
+  const stateCol = findHeader(headers, 'state', 'province')
+  const zipCol = findHeader(headers, 'postal', 'zip')
+  const badgeCol = findHeader(headers, 'badge_type', 'badge type', 'registration')
+  const roleCol = findHeader(headers, 'role', 'type')
+  const groupsCol = findHeader(headers, 'group')
+
+  // Handle combined "City and State" column (industry partner template)
+  const cityStateCol = headers.find((h) => {
+    const lower = h.toLowerCase()
+    return lower.includes('city') && lower.includes('state')
+  })
+
+  let city = ''
+  let state = ''
+
+  if (cityStateCol && !cityCol) {
+    // Split combined city/state field
+    const combined = get(cityStateCol)
+    if (combined) {
+      // Try splitting on last comma: "Baton Rouge, Louisiana" → city="Baton Rouge", state="Louisiana"
+      const lastComma = combined.lastIndexOf(',')
+      if (lastComma > -1) {
+        city = combined.substring(0, lastComma).trim()
+        state = combined.substring(lastComma + 1).trim()
+      } else {
+        // No comma — might be just a city name like "Cambridge"
+        city = combined
+      }
+    }
+  } else {
+    city = get(cityCol)
+    state = get(stateCol)
+  }
+
+  return {
+    first_name: get(fnCol),
+    last_name: get(lnCol),
+    email: get(emailCol),
+    phone: get(phoneCol),
+    credentials: get(credCol),
+    specialty: normalizeSpecialty(get(specCol)),
+    institution: get(instCol),
+    npi_number: cleanNPI(get(npiCol)) ?? '',
+    title: get(titleCol),
+    street_address: get(addrCol),
+    street_address_2: addr2Col ? get(addr2Col) : '',
+    city: city,
+    state: normalizeState(state),
+    postal_code: get(zipCol),
+    badge_type: get(badgeCol) || mapRoleToBadgeType(get(roleCol)) || defaultBadgeType,
+    groups: get(groupsCol),
+  }
+}
+
+/**
+ * Map a role string (e.g., "Speaker", "Leader", "Speaker/Leader") to a badge_type.
+ * Returns empty string if no mapping found.
+ */
+function mapRoleToBadgeType(role: string): string {
+  if (!role) return ''
+  const lower = role.trim().toLowerCase()
+  if (lower.includes('organizer') || lower.includes('organiser')) return 'organiser'
+  if (lower.includes('speaker')) return 'speaker'
+  if (lower.includes('leader')) return 'leadership'
+  return ''
+}
+
+/**
+ * Detect whether a file is Excel based on extension.
+ */
+export function isExcelFile(filename: string): boolean {
+  const ext = filename.toLowerCase().split('.').pop()
+  return ext === 'xlsx' || ext === 'xls'
+}
 
 export interface SpeakerCSVRow {
   // Our format

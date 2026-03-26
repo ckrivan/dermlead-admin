@@ -80,7 +80,8 @@ export function InviteUserModal({
         setError(result.error || 'Failed to create user')
       }
     } catch (err) {
-      setError('An unexpected error occurred')
+      console.error('[InviteUserModal] Error:', err)
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
     } finally {
       setLoading(false)
     }

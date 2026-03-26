@@ -29,6 +29,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false; // eslint-disable-line prefer-const
     async function loadStats() {
       setLoading(true);
       const supabase = createClient();
@@ -39,6 +40,8 @@ export default function DashboardPage() {
       const { count: eventCount } = await supabase
         .from("events")
         .select("*", { count: "exact", head: true });
+
+      if (cancelled) return;
 
       if (!eventId) {
         setStats({
@@ -67,11 +70,13 @@ export default function DashboardPage() {
           supabase
             .from("attendees")
             .select("*", { count: "exact", head: true })
-            .eq("event_id", eventId),
+            .eq("event_id", eventId)
+            .eq("badge_type", "attendee"),
           supabase
             .from("attendees")
             .select("*", { count: "exact", head: true })
             .eq("event_id", eventId)
+            .eq("badge_type", "attendee")
             .eq("checked_in", true),
           supabase
             .from("attendees")
@@ -79,6 +84,8 @@ export default function DashboardPage() {
             .eq("event_id", eventId)
             .eq("badge_type", "industry"),
         ]);
+
+      if (cancelled) return;
 
       setStats({
         totalEvents: eventCount || 0,
@@ -92,6 +99,7 @@ export default function DashboardPage() {
     }
 
     loadStats();
+    return () => { cancelled = true; };
   }, [selectedEvent?.id]);
 
   const statCards = stats
@@ -125,7 +133,7 @@ export default function DashboardPage() {
           bgColor: "bg-indigo-400/10",
         },
         {
-          name: "Speakers",
+          name: "Faculty",
           value: stats.totalSpeakers.toString(),
           icon: BarChart3,
           color: "text-orange-400",

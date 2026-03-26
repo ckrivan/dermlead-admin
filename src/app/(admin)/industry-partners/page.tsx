@@ -10,6 +10,8 @@ import {
   deleteExhibitor,
   bulkCreateExhibitors,
   uploadExhibitorLogo,
+  uploadExhibitorDocument,
+  deleteExhibitorDocument,
   EXHIBITOR_CATEGORIES,
 } from '@/lib/api/exhibitors'
 import {
@@ -19,6 +21,8 @@ import {
   deleteSponsor,
   bulkCreateSponsors,
   uploadSponsorLogo,
+  uploadSponsorDocument,
+  deleteSponsorDocument,
   SPONSOR_TIERS,
 } from '@/lib/api/sponsors'
 import { getEvents } from '@/lib/api/events'
@@ -30,9 +34,17 @@ import {
   downloadCSV,
   ExhibitorCSVRow,
   SponsorCSVRow,
+  parseExcelFile,
+  mapExcelRowToAttendee,
+  isExcelFile,
 } from '@/lib/utils/csv'
+import {
+  bulkCreateAttendees,
+  type AttendeeCSVRow,
+} from '@/lib/api/attendees'
 import { GroupAssignment } from '@/components/GroupAssignment'
-import type { Exhibitor, Sponsor, Event, EventGroup } from '@/types/database'
+import { createClient } from '@/lib/supabase/client'
+import type { Attendee, Exhibitor, Sponsor, Event, EventGroup } from '@/types/database'
 import { isAbortError } from '@/contexts/EventContext'
 import {
   Plus,
@@ -50,6 +62,8 @@ import {
   Search,
   Tag,
   Star,
+  FileText,
+  Users,
 } from 'lucide-react'
 
 type ActiveTab = 'exhibitors' | 'sponsors'
@@ -82,6 +96,7 @@ export default function IndustryPartnersPage() {
     contact_email: '',
     contact_phone: '',
     category: '',
+    leads_enabled: false,
   })
 
   // Sponsor modal state
@@ -96,6 +111,7 @@ export default function IndustryPartnersPage() {
     contact_email: '',
     booth_number: '',
     is_featured: false,
+    leads_enabled: false,
   })
 
   // Shared modal state
@@ -107,10 +123,30 @@ export default function IndustryPartnersPage() {
     errors: string[]
   } | null>(null)
 
+  // People import state (attendees with badge_type='industry')
+  const [showPeopleImportModal, setShowPeopleImportModal] = useState(false)
+  const [importingPeople, setImportingPeople] = useState(false)
+  const [peopleImportResult, setPeopleImportResult] = useState<{
+    created: number
+    errors: string[]
+  } | null>(null)
+  const peopleFileInputRef = useRef<HTMLInputElement>(null)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+
+  // Document state
+  const docInputRef = useRef<HTMLInputElement>(null)
+  const [pendingDocs, setPendingDocs] = useState<{ title: string; url: string }[]>([])
+  const [docTitle, setDocTitle] = useState('')
+  const [uploadingDoc, setUploadingDoc] = useState(false)
+
+  // Leads access modal state
+  const [leadsModalCompany, setLeadsModalCompany] = useState<string | null>(null)
+  const [leadsModalStaff, setLeadsModalStaff] = useState<Attendee[]>([])
+  const [leadsModalLoading, setLeadsModalLoading] = useState(false)
 
   // Load events
   useEffect(() => {
@@ -186,8 +222,10 @@ export default function IndustryPartnersPage() {
         contact_email: exhibitor.contact_email || '',
         contact_phone: exhibitor.contact_phone || '',
         category: exhibitor.category || '',
+        leads_enabled: exhibitor.leads_enabled,
       })
       setLogoPreview(exhibitor.logo_url)
+      setPendingDocs(exhibitor.documents || [])
     } else {
       setEditingExhibitor(null)
       setExhibitorFormData({
@@ -199,9 +237,12 @@ export default function IndustryPartnersPage() {
         contact_email: '',
         contact_phone: '',
         category: '',
+        leads_enabled: false,
       })
       setLogoPreview(null)
+      setPendingDocs([])
     }
+    setDocTitle('')
     setShowExhibitorForm(true)
   }
 
@@ -219,6 +260,8 @@ export default function IndustryPartnersPage() {
           contact_email: exhibitorFormData.contact_email.trim() || null,
           contact_phone: exhibitorFormData.contact_phone.trim() || null,
           category: exhibitorFormData.category || null,
+          leads_enabled: exhibitorFormData.leads_enabled,
+          documents: pendingDocs.length > 0 ? pendingDocs : null,
         })
       } else {
         await createExhibitor({
@@ -235,6 +278,8 @@ export default function IndustryPartnersPage() {
           category: exhibitorFormData.category || null,
           products_services: null,
           social_links: null,
+          leads_enabled: exhibitorFormData.leads_enabled,
+          documents: pendingDocs.length > 0 ? pendingDocs : null,
         })
       }
       const data = await getExhibitors(selectedEventId)
@@ -282,8 +327,10 @@ export default function IndustryPartnersPage() {
         contact_email: sponsor.contact_email || '',
         booth_number: sponsor.booth_number || '',
         is_featured: sponsor.is_featured,
+        leads_enabled: sponsor.leads_enabled,
       })
       setLogoPreview(sponsor.logo_url)
+      setPendingDocs(sponsor.documents || [])
     } else {
       setEditingSponsor(null)
       setSponsorFormData({
@@ -295,9 +342,12 @@ export default function IndustryPartnersPage() {
         contact_email: '',
         booth_number: '',
         is_featured: false,
+        leads_enabled: false,
       })
       setLogoPreview(null)
+      setPendingDocs([])
     }
+    setDocTitle('')
     setShowSponsorForm(true)
   }
 
@@ -315,6 +365,8 @@ export default function IndustryPartnersPage() {
           contact_email: sponsorFormData.contact_email.trim() || null,
           booth_number: sponsorFormData.booth_number.trim() || null,
           is_featured: sponsorFormData.is_featured,
+          leads_enabled: sponsorFormData.leads_enabled,
+          documents: pendingDocs.length > 0 ? pendingDocs : null,
         })
       } else {
         await createSponsor({
@@ -330,7 +382,9 @@ export default function IndustryPartnersPage() {
           booth_number: sponsorFormData.booth_number.trim() || null,
           display_order: 0,
           is_featured: sponsorFormData.is_featured,
+          leads_enabled: sponsorFormData.leads_enabled,
           social_links: null,
+          documents: pendingDocs.length > 0 ? pendingDocs : null,
         })
       }
       const data = await getSponsors(selectedEventId)
@@ -353,8 +407,117 @@ export default function IndustryPartnersPage() {
     }
   }
 
+  const handleToggleSponsorLeads = async (sponsor: Sponsor) => {
+    try {
+      await updateSponsor(sponsor.id, { leads_enabled: !sponsor.leads_enabled })
+      setSponsors((prev) => prev.map((s) => s.id === sponsor.id ? { ...s, leads_enabled: !s.leads_enabled } : s))
+    } catch (error) {
+      console.error('Error toggling sponsor leads:', error)
+    }
+  }
+
+  const handleToggleExhibitorLeads = async (exhibitor: Exhibitor) => {
+    try {
+      await updateExhibitor(exhibitor.id, { leads_enabled: !exhibitor.leads_enabled })
+      setExhibitors((prev) => prev.map((e) => e.id === exhibitor.id ? { ...e, leads_enabled: !e.leads_enabled } : e))
+    } catch (error) {
+      console.error('Error toggling exhibitor leads:', error)
+    }
+  }
+
+  const openLeadsModal = async (companyName: string) => {
+    setLeadsModalCompany(companyName)
+    setLeadsModalLoading(true)
+    setLeadsModalStaff([])
+    try {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('attendees')
+        .select('*')
+        .eq('event_id', selectedEventId)
+        .ilike('institution', companyName)
+        .order('last_name')
+      setLeadsModalStaff((data as Attendee[]) || [])
+    } catch (error) {
+      console.error('Error fetching company staff:', error)
+    } finally {
+      setLeadsModalLoading(false)
+    }
+  }
+
+  const handleToggleAttendeeLeads = async (attendeeId: string, currentValue: boolean) => {
+    const newValue = !currentValue
+    try {
+      const res = await fetch('/api/attendees/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendeeId, leadsAccess: newValue }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        console.error('Error toggling leads access:', err)
+        return
+      }
+      setLeadsModalStaff((prev) =>
+        prev.map((a) => a.id === attendeeId ? { ...a, leads_access: newValue } : a)
+      )
+    } catch (error) {
+      console.error('Error toggling attendee leads:', error)
+    }
+  }
+
   const getTierInfo = (tier: string) => {
     return SPONSOR_TIERS.find((t) => t.value === tier) || SPONSOR_TIERS[3]
+  }
+
+  // --- People (attendees) import handler for industry partner Excel ---
+  const handlePeopleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !selectedEventId) return
+
+    setImportingPeople(true)
+    setPeopleImportResult(null)
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let rows: any[]
+
+      if (isExcelFile(file.name)) {
+        const rawRows = await parseExcelFile(file)
+        if (rawRows.length === 0) {
+          setPeopleImportResult({ created: 0, errors: ['No data found in file'] })
+          return
+        }
+        const headers = Object.keys(rawRows[0])
+        for (const row of rawRows) {
+          for (const key of Object.keys(row)) {
+            if (!headers.includes(key)) headers.push(key)
+          }
+        }
+        rows = rawRows.map((row) => mapExcelRowToAttendee(headers, row, 'industry'))
+      } else {
+        const text = await file.text()
+        const parsed = parseCSV<Record<string, string>>(text)
+        // Set badge_type to industry for CSV imports too
+        rows = parsed.map((row) => ({ ...row, badge_type: row.badge_type || 'industry' }))
+      }
+
+      if (rows.length === 0) {
+        setPeopleImportResult({ created: 0, errors: ['No valid rows found in file'] })
+        return
+      }
+
+      const result = await bulkCreateAttendees(selectedEventId, rows, groups)
+      setPeopleImportResult(result)
+    } catch (error) {
+      console.error('Error importing people file:', error)
+      setPeopleImportResult({ created: 0, errors: ['Failed to parse file'] })
+    } finally {
+      setImportingPeople(false)
+      if (peopleFileInputRef.current) {
+        peopleFileInputRef.current.value = ''
+      }
+    }
   }
 
   // --- Import handlers ---
@@ -438,6 +601,14 @@ export default function IndustryPartnersPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              icon={<Users size={18} />}
+              onClick={() => setShowPeopleImportModal(true)}
+              disabled={!selectedEventId}
+            >
+              Import People
+            </Button>
             <Button
               variant="secondary"
               icon={<Upload size={18} />}
@@ -653,15 +824,25 @@ export default function IndustryPartnersPage() {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1 mt-3 pt-3 border-t border-[var(--card-border)]">
-                        <Tag size={14} className="text-[var(--foreground-muted)] flex-shrink-0" />
-                        <GroupAssignment
-                          entityType="exhibitor"
-                          entityId={exhibitor.id}
-                          eventId={selectedEventId}
-                          availableGroups={groups}
-                          compact={true}
-                        />
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--card-border)]">
+                        <div className="flex items-center gap-1">
+                          <Tag size={14} className="text-[var(--foreground-muted)] flex-shrink-0" />
+                          <GroupAssignment
+                            entityType="exhibitor"
+                            entityId={exhibitor.id}
+                            eventId={selectedEventId}
+                            availableGroups={groups}
+                            compact={true}
+                          />
+                        </div>
+                        <button
+                          onClick={() => openLeadsModal(exhibitor.company_name)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors bg-[var(--background-tertiary)] text-[var(--foreground-muted)] hover:bg-[var(--background-secondary)] hover:text-[var(--foreground)]"
+                          title="Manage leads access for this company's staff"
+                        >
+                          <Users size={12} />
+                          Manage Leads
+                        </button>
                       </div>
                     </CardBody>
                   </Card>
@@ -737,6 +918,7 @@ export default function IndustryPartnersPage() {
                     eventId={selectedEventId}
                     onEdit={() => handleOpenSponsorForm(sponsor)}
                     onDelete={() => handleDeleteSponsor(sponsor)}
+                    onToggleLeads={() => openLeadsModal(sponsor.company_name)}
                   />
                 ))}
               </div>
@@ -766,6 +948,7 @@ export default function IndustryPartnersPage() {
                             eventId={selectedEventId}
                             onEdit={() => handleOpenSponsorForm(sponsor)}
                             onDelete={() => handleDeleteSponsor(sponsor)}
+                            onToggleLeads={() => openLeadsModal(sponsor.company_name)}
                           />
                         ))}
                       </div>
@@ -893,6 +1076,21 @@ export default function IndustryPartnersPage() {
                 </div>
               </div>
 
+              <div className="flex items-center">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exhibitorFormData.leads_enabled}
+                    onChange={(e) => setExhibitorFormData({ ...exhibitorFormData, leads_enabled: e.target.checked })}
+                    className="w-4 h-4 rounded border-[var(--input-border)] text-[var(--accent-primary)] focus:ring-[var(--accent-primary)]"
+                  />
+                  <span className="text-sm text-[var(--foreground)] flex items-center gap-1">
+                    <Users size={14} className="text-emerald-500" />
+                    Leads Access
+                  </span>
+                </label>
+              </div>
+
               <div>
                 <label className="block text-sm text-[var(--foreground-muted)] mb-1">Website URL</label>
                 <input
@@ -929,6 +1127,87 @@ export default function IndustryPartnersPage() {
                     placeholder="555-123-4567"
                   />
                 </div>
+              </div>
+
+              {/* Documents Section */}
+              <div className="border-t border-[var(--card-border)] pt-4">
+                <h4 className="text-sm font-medium text-[var(--foreground)] mb-3">Documents & Literature</h4>
+                {pendingDocs.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {pendingDocs.map((doc, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-[var(--background-secondary)]">
+                        <FileText size={16} className="text-red-500 flex-shrink-0" />
+                        <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--accent-primary)] hover:underline truncate flex-1">
+                          {doc.title}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const updated = pendingDocs.filter((_, i) => i !== idx)
+                            setPendingDocs(updated)
+                            await deleteExhibitorDocument(doc.url)
+                            if (editingExhibitor) {
+                              await updateExhibitor(editingExhibitor.id, { documents: updated.length > 0 ? updated : null })
+                              const data = await getExhibitors(selectedEventId)
+                              setExhibitors(data)
+                            }
+                          }}
+                          className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)] hover:text-[var(--accent-danger)]"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={docTitle}
+                    onChange={(e) => setDocTitle(e.target.value)}
+                    className="flex-1 px-3 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--input-focus)]"
+                    placeholder="Document title"
+                  />
+                  <input
+                    ref={docInputRef}
+                    type="file"
+                    accept=".pdf,image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file || !docTitle.trim()) return
+                      if (!editingExhibitor) return
+                      setUploadingDoc(true)
+                      try {
+                        const doc = await uploadExhibitorDocument(editingExhibitor.id, file, docTitle.trim())
+                        const updated = [...pendingDocs, doc]
+                        setPendingDocs(updated)
+                        setDocTitle('')
+                        await updateExhibitor(editingExhibitor.id, { documents: updated })
+                        const data = await getExhibitors(selectedEventId)
+                        setExhibitors(data)
+                      } catch (err) {
+                        console.error('Error uploading document:', err)
+                      } finally {
+                        setUploadingDoc(false)
+                        if (docInputRef.current) docInputRef.current.value = ''
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    icon={<Upload size={14} />}
+                    onClick={() => docInputRef.current?.click()}
+                    disabled={uploadingDoc || !docTitle.trim() || !editingExhibitor}
+                  >
+                    {uploadingDoc ? 'Uploading...' : 'Upload File'}
+                  </Button>
+                </div>
+                {!editingExhibitor && (
+                  <p className="text-xs text-[var(--foreground-muted)] mt-2">Save the exhibitor first, then edit to upload documents.</p>
+                )}
               </div>
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-[var(--card-border)]">
@@ -1062,7 +1341,7 @@ export default function IndustryPartnersPage() {
                     placeholder="Main Hall"
                   />
                 </div>
-                <div className="flex items-center">
+                <div className="flex flex-col gap-2 justify-center">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -1073,6 +1352,18 @@ export default function IndustryPartnersPage() {
                     <span className="text-sm text-[var(--foreground)] flex items-center gap-1">
                       <Star size={14} className="text-yellow-500" />
                       Featured
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={sponsorFormData.leads_enabled}
+                      onChange={(e) => setSponsorFormData({ ...sponsorFormData, leads_enabled: e.target.checked })}
+                      className="w-4 h-4 rounded border-[var(--input-border)] text-[var(--accent-primary)] focus:ring-[var(--accent-primary)]"
+                    />
+                    <span className="text-sm text-[var(--foreground)] flex items-center gap-1">
+                      <Users size={14} className="text-emerald-500" />
+                      Leads Access
                     </span>
                   </label>
                 </div>
@@ -1107,6 +1398,87 @@ export default function IndustryPartnersPage() {
                     placeholder="contact@example.com"
                   />
                 </div>
+              </div>
+
+              {/* Documents Section */}
+              <div className="border-t border-[var(--card-border)] pt-4">
+                <h4 className="text-sm font-medium text-[var(--foreground)] mb-3">Documents & Literature</h4>
+                {pendingDocs.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {pendingDocs.map((doc, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-[var(--background-secondary)]">
+                        <FileText size={16} className="text-red-500 flex-shrink-0" />
+                        <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--accent-primary)] hover:underline truncate flex-1">
+                          {doc.title}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const updated = pendingDocs.filter((_, i) => i !== idx)
+                            setPendingDocs(updated)
+                            await deleteSponsorDocument(doc.url)
+                            if (editingSponsor) {
+                              await updateSponsor(editingSponsor.id, { documents: updated.length > 0 ? updated : null })
+                              const data = await getSponsors(selectedEventId)
+                              setSponsors(data)
+                            }
+                          }}
+                          className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)] hover:text-[var(--accent-danger)]"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={docTitle}
+                    onChange={(e) => setDocTitle(e.target.value)}
+                    className="flex-1 px-3 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--input-focus)]"
+                    placeholder="Document title"
+                  />
+                  <input
+                    ref={docInputRef}
+                    type="file"
+                    accept=".pdf,image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file || !docTitle.trim()) return
+                      if (!editingSponsor) return
+                      setUploadingDoc(true)
+                      try {
+                        const doc = await uploadSponsorDocument(editingSponsor.id, file, docTitle.trim())
+                        const updated = [...pendingDocs, doc]
+                        setPendingDocs(updated)
+                        setDocTitle('')
+                        await updateSponsor(editingSponsor.id, { documents: updated })
+                        const data = await getSponsors(selectedEventId)
+                        setSponsors(data)
+                      } catch (err) {
+                        console.error('Error uploading document:', err)
+                      } finally {
+                        setUploadingDoc(false)
+                        if (docInputRef.current) docInputRef.current.value = ''
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    icon={<Upload size={14} />}
+                    onClick={() => docInputRef.current?.click()}
+                    disabled={uploadingDoc || !docTitle.trim() || !editingSponsor}
+                  >
+                    {uploadingDoc ? 'Uploading...' : 'Upload File'}
+                  </Button>
+                </div>
+                {!editingSponsor && (
+                  <p className="text-xs text-[var(--foreground-muted)] mt-2">Save the sponsor first, then edit to upload documents.</p>
+                )}
               </div>
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-[var(--card-border)]">
@@ -1196,6 +1568,168 @@ export default function IndustryPartnersPage() {
           </div>
         </div>
       )}
+
+      {/* People Import Modal (industry partner attendees) */}
+      {showPeopleImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
+              <h3 className="font-semibold text-[var(--foreground)]">
+                Import Industry Partner People
+              </h3>
+              <button
+                onClick={() => { setShowPeopleImportModal(false); setPeopleImportResult(null) }}
+                className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)]"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-sm text-[var(--foreground-muted)] mb-3">
+                  Upload an Excel or CSV file with industry partner representatives.
+                  They will be added as attendees with the &quot;Industry&quot; badge type.
+                  Duplicate emails will be skipped automatically.
+                </p>
+                <div className="bg-[var(--background-tertiary)] rounded-lg p-3 text-sm">
+                  <p className="font-medium text-[var(--foreground)] mb-1">Expected Columns:</p>
+                  <ul className="text-[var(--foreground-muted)] space-y-0.5 text-xs">
+                    <li><code className="bg-[var(--input-bg)] px-1 rounded">Company Name</code>, <code className="bg-[var(--input-bg)] px-1 rounded">First Name</code>, <code className="bg-[var(--input-bg)] px-1 rounded">Last Name</code> - Required</li>
+                    <li><code className="bg-[var(--input-bg)] px-1 rounded">Title</code>, <code className="bg-[var(--input-bg)] px-1 rounded">Phone Number</code>, <code className="bg-[var(--input-bg)] px-1 rounded">E-mail</code> - Optional</li>
+                    <li><code className="bg-[var(--input-bg)] px-1 rounded">City and State</code> - Auto-split into separate fields</li>
+                  </ul>
+                </div>
+              </div>
+              <div className="border-2 border-dashed border-[var(--input-border)] rounded-lg p-6 text-center">
+                <input
+                  ref={peopleFileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handlePeopleFileSelect}
+                  className="hidden"
+                  id="people-upload"
+                />
+                <label htmlFor="people-upload" className="cursor-pointer">
+                  {importingPeople ? (
+                    <div className="flex flex-col items-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)] mb-2" />
+                      <span className="text-sm text-[var(--foreground-muted)]">Importing...</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <Upload size={32} className="text-[var(--foreground-subtle)] mb-2" />
+                      <span className="text-sm text-[var(--foreground)]">Click to select Excel or CSV file</span>
+                      <span className="text-xs text-[var(--foreground-muted)] mt-1">or drag and drop</span>
+                    </div>
+                  )}
+                </label>
+              </div>
+              {peopleImportResult && (
+                <div className={`p-3 rounded-lg ${peopleImportResult.errors.length > 0 ? 'bg-yellow-500/10' : 'bg-green-500/10'}`}>
+                  <p className="text-sm font-medium text-[var(--foreground)]">
+                    {peopleImportResult.created} {peopleImportResult.created !== 1 ? 'people' : 'person'} imported successfully
+                  </p>
+                  {peopleImportResult.errors.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs text-[var(--foreground-muted)] mb-1">Warnings:</p>
+                      <ul className="text-xs text-[var(--accent-warning)] space-y-0.5 max-h-32 overflow-y-auto">
+                        {peopleImportResult.errors.slice(0, 10).map((error, i) => (
+                          <li key={i}>{error}</li>
+                        ))}
+                        {peopleImportResult.errors.length > 10 && (
+                          <li>...and {peopleImportResult.errors.length - 10} more</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end p-4 border-t border-[var(--card-border)]">
+              <Button variant="ghost" onClick={() => { setShowPeopleImportModal(false); setPeopleImportResult(null) }}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leads Access Modal — pick specific people from a company */}
+      {leadsModalCompany && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
+              <div>
+                <h3 className="font-semibold text-[var(--foreground)]">Manage Leads Access</h3>
+                <p className="text-sm text-[var(--foreground-muted)]">{leadsModalCompany}</p>
+              </div>
+              <button
+                onClick={() => setLeadsModalCompany(null)}
+                className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)]"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {leadsModalLoading ? (
+                <p className="text-sm text-[var(--foreground-muted)] text-center py-8">Loading staff...</p>
+              ) : leadsModalStaff.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users className="mx-auto h-8 w-8 text-[var(--foreground-subtle)] mb-2" />
+                  <p className="text-sm text-[var(--foreground-muted)]">No attendees found from this company.</p>
+                  <p className="text-xs text-[var(--foreground-subtle)] mt-1">
+                    Attendees need their Institution field set to &ldquo;{leadsModalCompany}&rdquo;
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-[var(--foreground-muted)] mb-3">
+                    Toggle leads access for individual staff members.
+                  </p>
+                  {leadsModalStaff.map((person) => (
+                    <div
+                      key={person.id}
+                      className="flex items-center justify-between p-3 rounded-lg border border-[var(--card-border)] hover:bg-[var(--background-secondary)]"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-[var(--foreground)]">
+                          {person.first_name} {person.last_name}
+                          {person.credentials && (
+                            <span className="text-[var(--foreground-muted)]">, {person.credentials}</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-[var(--foreground-muted)]">
+                          {person.title || person.email}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleToggleAttendeeLeads(person.id, person.leads_access)}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          person.leads_access ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
+                            person.leads_access ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-between items-center p-4 border-t border-[var(--card-border)]">
+              <p className="text-xs text-[var(--foreground-muted)]">
+                {leadsModalStaff.filter((s) => s.leads_access).length} of {leadsModalStaff.length} with leads access
+              </p>
+              <Button variant="ghost" onClick={() => setLeadsModalCompany(null)}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -1208,6 +1742,7 @@ function SponsorCard({
   eventId,
   onEdit,
   onDelete,
+  onToggleLeads,
 }: {
   sponsor: Sponsor
   tierInfo: { value: string; label: string; color: string }
@@ -1215,6 +1750,7 @@ function SponsorCard({
   eventId: string
   onEdit: () => void
   onDelete: () => void
+  onToggleLeads: () => void
 }) {
   return (
     <Card hover>
@@ -1286,15 +1822,25 @@ function SponsorCard({
           )}
         </div>
 
-        <div className="flex items-center gap-1 mt-3 pt-3 border-t border-[var(--card-border)]">
-          <Tag size={14} className="text-[var(--foreground-muted)] flex-shrink-0" />
-          <GroupAssignment
-            entityType="sponsor"
-            entityId={sponsor.id}
-            eventId={eventId}
-            availableGroups={groups}
-            compact={true}
-          />
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--card-border)]">
+          <div className="flex items-center gap-1">
+            <Tag size={14} className="text-[var(--foreground-muted)] flex-shrink-0" />
+            <GroupAssignment
+              entityType="sponsor"
+              entityId={sponsor.id}
+              eventId={eventId}
+              availableGroups={groups}
+              compact={true}
+            />
+          </div>
+          <button
+            onClick={onToggleLeads}
+            className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors bg-[var(--background-tertiary)] text-[var(--foreground-muted)] hover:bg-[var(--background-secondary)] hover:text-[var(--foreground)]"
+            title="Manage leads access for this company's staff"
+          >
+            <Users size={12} />
+            Manage Leads
+          </button>
         </div>
       </CardBody>
     </Card>

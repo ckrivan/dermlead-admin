@@ -10,14 +10,22 @@ import {
   searchAttendeeRoster,
   deleteAttendee,
   updateAttendee,
+  syncAttendeeToSpeaker,
   checkInAttendee,
   undoCheckIn,
   bulkCreateAttendees,
   BADGE_TYPES,
   AttendeeWithGroups,
+  type AttendeeCSVRow,
 } from "@/lib/api/attendees";
 import { getGroups } from "@/lib/api/groups";
-import { downloadCSV, parseCSV } from "@/lib/utils/csv";
+import {
+  downloadCSV,
+  parseCSV,
+  parseExcelFile,
+  mapExcelRowToAttendee,
+  isExcelFile,
+} from "@/lib/utils/csv";
 import { useEvent } from "@/contexts/EventContext";
 import { createClient } from "@/lib/supabase/client";
 import { GroupAssignment } from "@/components/GroupAssignment";
@@ -57,6 +65,7 @@ export default function AttendeesPage() {
 
   const [attendees, setAttendees] = useState<AttendeeWithGroups[]>([]);
   const [groups, setGroups] = useState<EventGroup[]>([]);
+  const [companyNames, setCompanyNames] = useState<string[]>([]);
   const [admins, setAdmins] = useState<
     { id: string; full_name: string | null; email: string | null }[]
   >([]);
@@ -190,6 +199,8 @@ export default function AttendeesPage() {
     credentials: "",
     title: "",
     badge_type: "attendee",
+    badge_types: [] as string[],
+    bio: "",
     npi_number: "",
     street_address: "",
     street_address_2: "",
@@ -229,7 +240,7 @@ export default function AttendeesPage() {
       setLoading(true);
       try {
         const supabaseForAdmins = createClient();
-        const [attendeesData, groupsData, adminsResult] = await Promise.all([
+        const [attendeesData, groupsData, adminsResult, sponsorsResult, exhibitorsResult] = await Promise.all([
           getAttendeesWithGroups(selectedEventId),
           getGroups(selectedEventId),
           supabaseForAdmins
@@ -237,10 +248,24 @@ export default function AttendeesPage() {
             .select("id, full_name, email")
             .eq("organization_id", selectedEvent?.organization_id || "")
             .eq("role", "admin"),
+          supabaseForAdmins
+            .from("sponsors")
+            .select("company_name")
+            .eq("event_id", selectedEventId)
+            .order("company_name"),
+          supabaseForAdmins
+            .from("exhibitors")
+            .select("company_name")
+            .eq("event_id", selectedEventId)
+            .order("company_name"),
         ]);
         setAttendees(attendeesData);
         setGroups(groupsData);
         setAdmins(adminsResult.data || []);
+        const names = new Set<string>();
+        (sponsorsResult.data || []).forEach((s: { company_name: string }) => names.add(s.company_name));
+        (exhibitorsResult.data || []).forEach((e: { company_name: string }) => names.add(e.company_name));
+        setCompanyNames([...names].sort());
       } catch (error) {
         console.error("Error loading data:", error);
       } finally {
@@ -292,6 +317,14 @@ export default function AttendeesPage() {
     };
   }, [selectedEventId]);
 
+  // Combine badge_type (primary/printed badge) + badge_types (additional roles), deduplicated
+  const getAllBadgeTypes = (attendee: AttendeeWithGroups): string[] => {
+    const types = new Set<string>();
+    types.add(attendee.badge_type);
+    if (attendee.badge_types) attendee.badge_types.forEach((t) => types.add(t));
+    return Array.from(types);
+  };
+
   // Filter attendees
   const filteredAttendees = attendees.filter((attendee) => {
     if (searchQuery) {
@@ -306,8 +339,9 @@ export default function AttendeesPage() {
     if (selectedGroup && !attendee.groups.some((g) => g.id === selectedGroup)) {
       return false;
     }
-    if (selectedRegType && attendee.badge_type !== selectedRegType) {
-      return false;
+    if (selectedRegType) {
+      const allTypes = getAllBadgeTypes(attendee);
+      if (!allTypes.includes(selectedRegType)) return false;
     }
     if (showCheckedIn === "checked_in" && !attendee.checked_in_at) {
       return false;
@@ -318,9 +352,10 @@ export default function AttendeesPage() {
     return true;
   });
 
-  // Stats
-  const totalAttendees = attendees.length;
-  const checkedInCount = attendees.filter((a) => a.checked_in_at).length;
+  // Stats (exclude speakers/leadership from attendee count)
+  const nonSpeakerAttendees = attendees.filter((a) => !['speaker', 'leadership'].includes(a.badge_type));
+  const totalAttendees = nonSpeakerAttendees.length;
+  const checkedInCount = nonSpeakerAttendees.filter((a) => a.checked_in_at).length;
   const notCheckedInCount = totalAttendees - checkedInCount;
 
   const getBadgeTypeLabel = (type: string) => {
@@ -357,16 +392,31 @@ export default function AttendeesPage() {
     setImportResult(null);
 
     try {
-      const text = await file.text();
-      const rows = parseCSV<{
-        full_name: string;
-        email: string;
-        badge_type?: string;
-        groups?: string;
-      }>(text);
+      let rows: AttendeeCSVRow[];
+
+      if (isExcelFile(file.name)) {
+        // Excel file: parse and map columns
+        const rawRows = await parseExcelFile(file);
+        if (rawRows.length === 0) {
+          setImportResult({ created: 0, errors: ["No data found in file"] });
+          return;
+        }
+        const headers = Object.keys(rawRows[0]);
+        // Collect all headers across rows (some rows may have extra keys)
+        for (const row of rawRows) {
+          for (const key of Object.keys(row)) {
+            if (!headers.includes(key)) headers.push(key);
+          }
+        }
+        rows = rawRows.map((row) => mapExcelRowToAttendee(headers, row));
+      } else {
+        // CSV file: use existing parser
+        const text = await file.text();
+        rows = parseCSV<AttendeeCSVRow>(text);
+      }
 
       if (rows.length === 0) {
-        setImportResult({ created: 0, errors: ["No valid rows found in CSV"] });
+        setImportResult({ created: 0, errors: ["No valid rows found in file"] });
         return;
       }
 
@@ -383,8 +433,8 @@ export default function AttendeesPage() {
         setGroups(groupsData);
       }
     } catch (error) {
-      console.error("Error importing CSV:", error);
-      setImportResult({ created: 0, errors: ["Failed to parse CSV file"] });
+      console.error("Error importing file:", error);
+      setImportResult({ created: 0, errors: ["Failed to parse file"] });
     } finally {
       setImporting(false);
       if (fileInputRef.current) {
@@ -394,11 +444,30 @@ export default function AttendeesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this attendee?")) return;
+    const attendee = attendees.find((a) => a.id === id);
+    const hasAccount = !!attendee?.profile_id;
+
+    let deleteAccount = false;
+    if (hasAccount) {
+      const choice = prompt(
+        `Delete "${attendee?.first_name} ${attendee?.last_name}"?\n\n` +
+        `This person has a linked account.\n\n` +
+        `Type "account" to delete their entire account (they won't be able to sign in).\n` +
+        `Type "attendee" to only remove them from this event.`
+      );
+      if (!choice) return;
+      if (choice.toLowerCase() === "account") {
+        deleteAccount = true;
+      } else if (choice.toLowerCase() !== "attendee") {
+        return;
+      }
+    } else {
+      if (!confirm("Delete this attendee record? (No linked account)")) return;
+    }
 
     setDeleting(id);
     try {
-      await deleteAttendee(id);
+      await deleteAttendee(id, deleteAccount);
       setAttendees(attendees.filter((a) => a.id !== id));
     } catch (error) {
       console.error("Error deleting attendee:", error);
@@ -406,6 +475,31 @@ export default function AttendeesPage() {
       setDeleting(null);
       setOpenMoreMenu(null);
     }
+  };
+
+  const handleToggleLeadsAccess = async (id: string, currentValue: boolean) => {
+    const newValue = !currentValue;
+    try {
+      const res = await fetch("/api/attendees/leads", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attendeeId: id, leadsAccess: newValue }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        console.error("Error toggling leads access:", err);
+        return;
+      }
+      setAttendees((prev) =>
+        prev.map((a) =>
+          a.id === id ? { ...a, leads_access: newValue } : a,
+        ),
+      );
+    } catch (error) {
+      console.error("Error toggling leads access:", error);
+    }
+    setOpenMoreMenu(null);
+    setOpenMoreMenuRect(null);
   };
 
   const openEditModal = (attendee: AttendeeWithGroups) => {
@@ -420,6 +514,8 @@ export default function AttendeesPage() {
       credentials: attendee.credentials || "",
       title: attendee.title || "",
       badge_type: attendee.badge_type || "attendee",
+      badge_types: attendee.badge_types || [],
+      bio: attendee.bio || "",
       npi_number: attendee.npi_number || "",
       street_address: attendee.street_address || "",
       street_address_2: attendee.street_address_2 || "",
@@ -445,6 +541,8 @@ export default function AttendeesPage() {
         credentials: editForm.credentials || null,
         title: editForm.title || null,
         badge_type: editForm.badge_type,
+        badge_types: editForm.badge_types.length > 0 ? editForm.badge_types : null,
+        bio: editForm.bio || null,
         npi_number: editForm.npi_number || null,
         street_address: editForm.street_address || null,
         street_address_2: editForm.street_address_2 || null,
@@ -452,6 +550,21 @@ export default function AttendeesPage() {
         state: editForm.state || null,
         postal_code: editForm.postal_code || null,
       });
+      // Auto-create/update linked speaker if badge_types includes 'speaker'
+      const badgeTypes = editForm.badge_types.length > 0 ? editForm.badge_types : [];
+      if (badgeTypes.includes("speaker") || editForm.badge_type === "speaker") {
+        await syncAttendeeToSpeaker(editAttendee.id, {
+          first_name: editForm.first_name,
+          last_name: editForm.last_name,
+          credentials: editForm.credentials || null,
+          institution: editForm.institution || null,
+          specialty: editForm.specialty || null,
+          email: editForm.email,
+          bio: editForm.bio || null,
+          photo_url: editAttendee.photo_url || null,
+          event_id: editAttendee.event_id,
+        });
+      }
       await refetchAttendees();
       setEditAttendee(null);
     } catch (error) {
@@ -561,6 +674,10 @@ export default function AttendeesPage() {
         state: addForm.state.trim() || null,
         postal_code: addForm.postal_code.trim() || null,
         badge_type: addForm.badge_type || "attendee",
+        badge_types: null,
+        leads_access: false,
+        bio: null,
+        photo_url: null,
         badge_generated: false,
         badge_printed: false,
         qr_data: null,
@@ -838,12 +955,15 @@ export default function AttendeesPage() {
                     onChange={(e) => setSelectedRegType(e.target.value)}
                     className="pl-9 pr-8 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)] appearance-none cursor-pointer"
                   >
-                    <option value="">All Types</option>
-                    {BADGE_TYPES.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
+                    <option value="">All Types ({attendees.length})</option>
+                    {BADGE_TYPES.map((type) => {
+                      const count = attendees.filter((a) => a.badge_type === type.value).length;
+                      return (
+                        <option key={type.value} value={type.value}>
+                          {type.label} ({count})
+                        </option>
+                      );
+                    })}
                   </select>
                   <ChevronDown
                     size={16}
@@ -1066,13 +1186,21 @@ export default function AttendeesPage() {
                           </td>
                           {visibleColumns.has("type") && (
                             <td className="p-4">
-                              <span
-                                className={`px-2 py-1 rounded text-xs font-medium ${getBadgeTypeColor(
-                                  attendee.badge_type,
-                                )}`}
-                              >
-                                {getBadgeTypeLabel(attendee.badge_type)}
-                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                {getAllBadgeTypes(attendee).map((bt: string) => (
+                                  <span
+                                    key={bt}
+                                    className={`px-2 py-1 rounded text-xs font-medium ${getBadgeTypeColor(bt)}`}
+                                  >
+                                    {getBadgeTypeLabel(bt)}
+                                  </span>
+                                ))}
+                                {attendee.leads_access && (
+                                  <span className="px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                    Leads
+                                  </span>
+                                )}
+                              </div>
                             </td>
                           )}
                           {visibleColumns.has("institution") && (
@@ -1170,6 +1298,7 @@ export default function AttendeesPage() {
                                 entityId={attendee.id}
                                 eventId={selectedEventId}
                                 availableGroups={groups}
+                                initialGroups={attendee.groups || []}
                                 onGroupsChange={() => refetchAttendees()}
                                 compact={true}
                               />
@@ -1494,17 +1623,23 @@ export default function AttendeesPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
-                  Institution / Practice
+                  Institution / Company
                 </label>
                 <input
                   type="text"
+                  list="company-names-add"
                   value={addForm.institution}
                   onChange={(e) =>
                     setAddForm({ ...addForm, institution: e.target.value })
                   }
                   className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
-                  placeholder="Hospital / Practice / Company"
+                  placeholder="Type to search Industry Partners..."
                 />
+                <datalist id="company-names-add">
+                  {companyNames.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
@@ -1612,7 +1747,7 @@ export default function AttendeesPage() {
           <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-md mx-4">
             <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
               <h3 className="font-semibold text-[var(--foreground)]">
-                Import Attendees from CSV
+                Import Attendees
               </h3>
               <button
                 onClick={() => {
@@ -1628,8 +1763,8 @@ export default function AttendeesPage() {
             <div className="p-4 space-y-4">
               <div>
                 <p className="text-sm text-[var(--foreground-muted)] mb-3">
-                  Upload a CSV file with attendee information. Groups will be
-                  created automatically if they don't exist.
+                  Upload a CSV or Excel (.xlsx) file with attendee information.
+                  States will be normalized and NPI numbers validated automatically.
                 </p>
                 <div className="bg-[var(--background-tertiary)] rounded-lg p-3 text-sm">
                   <p className="font-medium text-[var(--foreground)] mb-1">
@@ -1715,7 +1850,7 @@ export default function AttendeesPage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls"
                   onChange={handleFileSelect}
                   className="hidden"
                   id="csv-upload-attendees"
@@ -1738,7 +1873,7 @@ export default function AttendeesPage() {
                         className="text-[var(--foreground-subtle)] mb-2"
                       />
                       <span className="text-sm text-[var(--foreground)]">
-                        Click to select CSV file
+                        Click to select CSV or Excel file
                       </span>
                       <span className="text-xs text-[var(--foreground-muted)] mt-1">
                         or drag and drop
@@ -1820,6 +1955,21 @@ export default function AttendeesPage() {
                 <Pencil size={14} />
                 Edit
               </button>
+              {(() => {
+                const att = attendees.find((a) => a.id === openMoreMenu);
+                if (!att) return null;
+                return (
+                  <button
+                    onClick={() => handleToggleLeadsAccess(openMoreMenu, att.leads_access)}
+                    className={`w-full px-3 py-2 text-left text-sm hover:bg-[var(--background-tertiary)] flex items-center gap-2 ${
+                      att.leads_access ? 'text-emerald-600' : 'text-[var(--foreground)]'
+                    }`}
+                  >
+                    <Users size={14} />
+                    {att.leads_access ? 'Revoke Leads' : 'Grant Leads'}
+                  </button>
+                );
+              })()}
               <button
                 onClick={() => {
                   handleDelete(openMoreMenu);
@@ -1956,6 +2106,41 @@ export default function AttendeesPage() {
                 </select>
               </div>
 
+              {/* Additional Badge Types — for people with multiple roles */}
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Additional Roles
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {BADGE_TYPES.filter((bt) => bt.value !== editForm.badge_type).map((bt) => (
+                    <label
+                      key={bt.value}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition-colors ${
+                        editForm.badge_types.includes(bt.value)
+                          ? "bg-[var(--accent-primary)]/10 border-[var(--accent-primary)] text-[var(--accent-primary)]"
+                          : "bg-[var(--card-bg)] border-[var(--card-border)] text-[var(--foreground-muted)]"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={editForm.badge_types.includes(bt.value)}
+                        onChange={(e) => {
+                          const types = e.target.checked
+                            ? [...editForm.badge_types, bt.value]
+                            : editForm.badge_types.filter((t) => t !== bt.value);
+                          setEditForm({ ...editForm, badge_types: types });
+                        }}
+                      />
+                      {bt.label}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-[var(--foreground-muted)] mt-1">
+                  Select additional roles beyond the primary badge type
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
@@ -2060,16 +2245,23 @@ export default function AttendeesPage() {
 
               <div>
                 <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
-                  Institution
+                  Institution / Company
                 </label>
                 <input
                   type="text"
+                  list="company-names-edit"
                   value={editForm.institution}
                   onChange={(e) =>
                     setEditForm({ ...editForm, institution: e.target.value })
                   }
                   className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
+                  placeholder="Type to search Industry Partners..."
                 />
+                <datalist id="company-names-edit">
+                  {companyNames.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
               </div>
 
               <div>
@@ -2155,6 +2347,22 @@ export default function AttendeesPage() {
                     className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm"
                   />
                 </div>
+              </div>
+
+              {/* Bio */}
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  Bio
+                </label>
+                <textarea
+                  value={editForm.bio}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, bio: e.target.value })
+                  }
+                  rows={3}
+                  placeholder="Speaker biography..."
+                  className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm resize-y"
+                />
               </div>
             </div>
 

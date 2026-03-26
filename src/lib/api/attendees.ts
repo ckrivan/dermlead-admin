@@ -245,66 +245,99 @@ export async function createAttendee(
   attendee: Omit<Attendee, "id" | "created_at">,
   groupIds?: string[],
 ): Promise<Attendee> {
+  const res = await fetch("/api/attendees", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ attendee, groupIds }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to create attendee");
+  }
+
+  return await res.json();
+}
+
+/**
+ * Auto-create or update a linked speakers record for an attendee-speaker.
+ * The attendee record is the source of truth; the speakers record is synced infrastructure
+ * so the attendee can be assigned to sessions (session_speakers FK requires speakers.id).
+ */
+export async function syncAttendeeToSpeaker(
+  attendeeId: string,
+  attendee: {
+    first_name?: string | null;
+    last_name?: string | null;
+    credentials?: string | null;
+    institution?: string | null;
+    specialty?: string | null;
+    email?: string | null;
+    bio?: string | null;
+    photo_url?: string | null;
+    event_id?: string | null;
+  },
+): Promise<void> {
   const supabase = createClient();
 
-  // Auto-link to profile if email matches
-  if (!attendee.profile_id && attendee.email) {
-    const profileId = await lookupProfileByEmail(attendee.email);
-    if (profileId) {
-      attendee = { ...attendee, profile_id: profileId };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    // Check if linked speaker already exists
+    const { data: existing, error: lookupError } = await supabase
+      .from("speakers")
+      .select("id")
+      .eq("attendee_id", attendeeId)
+      .abortSignal(controller.signal)
+      .maybeSingle();
+
+    if (lookupError) {
+      console.error("Error looking up linked speaker:", lookupError);
+      throw lookupError;
     }
-  }
 
-  // Check if attendee already exists at this event (prevent duplicates)
-  const { data: existing } = await supabase
-    .from("attendees")
-    .select("id")
-    .eq("event_id", attendee.event_id)
-    .ilike("email", attendee.email)
-    .maybeSingle();
+    const speakerData = {
+      full_name: `${attendee.first_name || ""} ${attendee.last_name || ""}`.trim(),
+      credentials: attendee.credentials || null,
+      institution: attendee.institution || null,
+      specialty: attendee.specialty || null,
+      email: attendee.email || null,
+      bio: attendee.bio || null,
+      photo_url: attendee.photo_url || null,
+      event_id: attendee.event_id || null,
+      attendee_id: attendeeId,
+      role: ["faculty"],
+      updated_at: new Date().toISOString(),
+    };
 
-  let data: Attendee;
-
-  if (existing) {
-    // Update existing record instead of creating a duplicate
-    const { data: updated, error } = await supabase
-      .from("attendees")
-      .update(attendee)
-      .eq("id", existing.id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error updating existing attendee:", error);
-      throw error;
+    if (existing) {
+      const { error } = await supabase
+        .from("speakers")
+        .update(speakerData)
+        .eq("id", existing.id)
+        .abortSignal(controller.signal)
+        .select()
+        .single();
+      if (error) {
+        console.error("Error syncing attendee to speaker:", error);
+        throw error;
+      }
+    } else {
+      const { error } = await supabase
+        .from("speakers")
+        .insert(speakerData)
+        .abortSignal(controller.signal)
+        .select()
+        .single();
+      if (error) {
+        console.error("Error creating linked speaker:", error);
+        throw error;
+      }
     }
-    data = updated;
-  } else {
-    const { data: created, error } = await supabase
-      .from("attendees")
-      .insert(attendee)
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error creating attendee:", error);
-      throw error;
-    }
-    data = created;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  // Add group memberships
-  if (groupIds && groupIds.length > 0) {
-    const memberships = groupIds.map((groupId) => ({
-      entity_id: data.id,
-      entity_type: "attendee",
-      group_id: groupId,
-    }));
-
-    await supabase.from("group_members").insert(memberships);
-  }
-
-  return data;
 }
 
 export async function updateAttendee(
@@ -312,94 +345,41 @@ export async function updateAttendee(
   updates: Partial<Omit<Attendee, "id" | "created_at">>,
   groupIds?: string[],
 ): Promise<Attendee> {
-  const supabase = createClient();
+  const res = await fetch("/api/attendees", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, updates, groupIds }),
+  });
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-
-  const { data, error } = await supabase
-    .from("attendees")
-    .update(updates)
-    .eq("id", id)
-    .abortSignal(controller.signal)
-    .select()
-    .single();
-
-  clearTimeout(timeout);
-
-  if (error) {
-    console.error("Error updating attendee:", error);
-    throw error;
+  if (!res.ok) {
+    const err = await res.json();
+    console.error("Error updating attendee:", err);
+    throw new Error(err.error || "Failed to update attendee");
   }
 
-  // Update group memberships if provided
-  if (groupIds !== undefined) {
-    // Remove existing memberships
-    await supabase.from("group_members").delete().eq("entity_id", id);
-
-    // Add new memberships
-    if (groupIds.length > 0) {
-      const memberships = groupIds.map((groupId) => ({
-        entity_id: id,
-        entity_type: "attendee",
-        group_id: groupId,
-      }));
-
-      await supabase.from("group_members").insert(memberships);
-    }
-  }
-
-  return data;
+  return await res.json();
 }
 
-export async function deleteAttendee(id: string): Promise<void> {
-  const supabase = createClient();
+export async function deleteAttendee(id: string, deleteAccount = false): Promise<void> {
+  const res = await fetch("/api/attendees", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, deleteAccount }),
+  });
 
-  // Delete group memberships first
-  await supabase.from("group_members").delete().eq("entity_id", id);
-
-  const { error } = await supabase.from("attendees").delete().eq("id", id);
-
-  if (error) {
-    console.error("Error deleting attendee:", error);
-    throw error;
+  if (!res.ok) {
+    const err = await res.json();
+    console.error("Error deleting attendee:", err);
+    throw new Error(err.error || "Failed to delete attendee");
   }
 }
 
 export async function checkInAttendee(id: string): Promise<Attendee> {
-  const supabase = createClient();
-
-  const { data, error } = await supabase
-    .from("attendees")
-    .update({ checked_in_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Error checking in attendee:", error);
-    throw error;
-  }
-
-  return data;
+  return updateAttendee(id, { checked_in_at: new Date().toISOString() });
 }
 
 export async function undoCheckIn(id: string): Promise<Attendee> {
-  const supabase = createClient();
-
-  const { data, error } = await supabase
-    .from("attendees")
-    .update({ checked_in_at: null })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Error undoing check-in:", error);
-    throw error;
-  }
-
-  return data;
+  return updateAttendee(id, { checked_in_at: null });
 }
 
 // Groups API
@@ -510,12 +490,47 @@ export async function bulkCreateAttendees(
       continue;
     }
 
-    // QR data will be set after insert (needs attendee ID)
-    // Placeholder — will be updated below
-    const qrData = null;
-
     // Auto-link to profile if email matches
     const attendeeEmail = row.email.trim().toLowerCase();
+
+    // Check for existing attendee with same email in this event (duplicate detection)
+    const { data: existing } = await supabase
+      .from("attendees")
+      .select("id,credentials,specialty,institution,npi_number,street_address,city,state,postal_code,phone,title")
+      .eq("event_id", eventId)
+      .ilike("email", attendeeEmail)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      // Fill in blank fields from the import data (don't overwrite existing values)
+      const fillFields: Record<string, string> = {};
+      const fieldMap: Record<string, string | undefined> = {
+        credentials: row.credentials?.trim(),
+        specialty: row.specialty?.trim(),
+        institution: row.institution?.trim(),
+        npi_number: row.npi_number?.trim(),
+        street_address: row.street_address?.trim(),
+        city: row.city?.trim(),
+        state: row.state?.trim(),
+        postal_code: row.postal_code?.trim(),
+        phone: row.phone?.trim(),
+        title: row.title?.trim(),
+      };
+      for (const [field, newVal] of Object.entries(fieldMap)) {
+        if (newVal && !existing[field as keyof typeof existing]) {
+          fillFields[field] = newVal;
+        }
+      }
+      if (Object.keys(fillFields).length > 0) {
+        await supabase.from("attendees").update(fillFields).eq("id", existing.id);
+        errors.push(`Updated "${firstName} ${lastName}": filled ${Object.keys(fillFields).join(", ")}`);
+      } else {
+        errors.push(`Skipped "${firstName} ${lastName}": already exists for this event`);
+      }
+      continue;
+    }
+
     const profileId = await lookupProfileByEmail(attendeeEmail);
 
     // Create the attendee
@@ -527,7 +542,7 @@ export async function bulkCreateAttendees(
         last_name: lastName,
         email: attendeeEmail,
         badge_type: row.badge_type?.trim() || "attendee",
-        qr_data: qrData,
+        qr_data: null,
         profile_id: profileId,
         checked_in: false,
         checked_in_at: null,
@@ -562,6 +577,35 @@ export async function bulkCreateAttendees(
       .from("attendees")
       .update({ qr_data: { attendeeId: createdAttendee.id } })
       .eq("id", createdAttendee.id);
+
+    // Auto-create speaker/faculty record for speaker and leadership badge types
+    const badgeType = row.badge_type?.trim() || "attendee";
+    if (badgeType === "speaker" || badgeType === "leadership") {
+      const speakerRole =
+        badgeType === "leadership" ? ["leader"] : ["faculty"];
+      // Check if speaker record already exists for this attendee
+      const { data: existingSpeaker } = await supabase
+        .from("speakers")
+        .select("id")
+        .eq("event_id", eventId)
+        .eq("attendee_id", createdAttendee.id)
+        .maybeSingle();
+
+      if (!existingSpeaker) {
+        await supabase.from("speakers").insert({
+          event_id: eventId,
+          attendee_id: createdAttendee.id,
+          full_name: `${firstName} ${lastName}`.trim(),
+          credentials: row.credentials?.trim() || null,
+          specialty: row.specialty?.trim() || null,
+          institution: row.institution?.trim() || null,
+          email: attendeeEmail,
+          city: row.city?.trim() || null,
+          state: row.state?.trim() || null,
+          role: speakerRole,
+        });
+      }
+    }
 
     created++;
 
@@ -632,3 +676,27 @@ export const BADGE_TYPES = [
 
 // Alias for backward compatibility
 export const REGISTRATION_TYPES = BADGE_TYPES;
+
+export async function uploadAttendeePhoto(
+  attendeeId: string,
+  file: File,
+): Promise<string> {
+  const supabase = createClient();
+
+  const fileExt = file.name.split(".").pop();
+  const fileName = `${attendeeId}.${fileExt}`;
+  const filePath = `attendees/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("speakers")
+    .upload(filePath, file, { upsert: true });
+
+  if (uploadError) {
+    console.error("Error uploading attendee photo:", uploadError);
+    throw uploadError;
+  }
+
+  const { data } = supabase.storage.from("speakers").getPublicUrl(filePath);
+
+  return data.publicUrl;
+}
