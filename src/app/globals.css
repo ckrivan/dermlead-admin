@@ -31,6 +31,37 @@
   --input-focus: #3b82f6;
 }
 
+[data-theme="dark"] {
+  /* Converge Dark Theme — soft gray, not black */
+  --background: #2b2d31;
+  --background-secondary: #232428;
+  --background-tertiary: #383a40;
+  --foreground: #f2f3f5;
+  --foreground-muted: #b5bac1;
+  --foreground-subtle: #80848e;
+
+  /* Accent Colors — slightly brighter for contrast on dark */
+  --accent-primary: #5b9bf5;
+  --accent-primary-hover: #4a8de8;
+  --accent-success: #3dd68c;
+  --accent-warning: #f5b642;
+  --accent-danger: #f25555;
+
+  /* Sidebar Gradient — deeper blue */
+  --sidebar-gradient-from: #2b4a8e;
+  --sidebar-gradient-to: #1a2f5c;
+
+  /* Card Styles */
+  --card-bg: #313338;
+  --card-border: #3f4147;
+  --card-hover: #383a40;
+
+  /* Input Styles */
+  --input-bg: #1e1f22;
+  --input-border: #4e5058;
+  --input-focus: #5b9bf5;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

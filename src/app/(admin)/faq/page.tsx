@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button } from '@/components/ui'
 import { getFaqs, createFaq, updateFaq, deleteFaq } from '@/lib/api/faq'
@@ -21,7 +21,7 @@ export default function FaqPage() {
   const [newQuestion, setNewQuestion] = useState('')
   const [newAnswer, setNewAnswer] = useState('')
 
-  const loadData = useCallback(async () => {
+  async function loadData() {
     if (!selectedEventId) {
       setFaqs([])
       setLoading(false)
@@ -36,11 +36,31 @@ export default function FaqPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedEventId])
+  }
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    let cancelled = false // eslint-disable-line prefer-const
+    async function fetchData() {
+      if (!selectedEventId) {
+        setFaqs([])
+        setLoading(false)
+        return
+      }
+      setLoading(true)
+      try {
+        const data = await getFaqs(selectedEventId)
+        if (cancelled) return
+        setFaqs(data)
+      } catch (error) {
+        if (cancelled) return
+        console.error('Error loading FAQs:', error)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    fetchData()
+    return () => { cancelled = true }
+  }, [selectedEventId])
 
   const handleAdd = async () => {
     if (!newQuestion.trim() || !newAnswer.trim()) return

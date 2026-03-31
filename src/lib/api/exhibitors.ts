@@ -142,6 +142,45 @@ export async function uploadExhibitorBanner(
   return data.publicUrl
 }
 
+export async function uploadExhibitorDocument(
+  exhibitorId: string,
+  file: File,
+  title: string
+): Promise<{ title: string; url: string }> {
+  const supabase = createClient()
+
+  const timestamp = Date.now()
+  const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const filePath = `exhibitors/${exhibitorId}/docs/${timestamp}-${sanitized}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('events')
+    .upload(filePath, file, { upsert: true })
+
+  if (uploadError) {
+    console.error('Error uploading exhibitor document:', uploadError)
+    throw uploadError
+  }
+
+  const { data } = supabase.storage.from('events').getPublicUrl(filePath)
+
+  return { title, url: data.publicUrl }
+}
+
+export async function deleteExhibitorDocument(documentUrl: string): Promise<void> {
+  const supabase = createClient()
+
+  try {
+    const urlObj = new URL(documentUrl)
+    const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/events\/(.+)/)
+    if (pathMatch) {
+      await supabase.storage.from('events').remove([pathMatch[1]])
+    }
+  } catch {
+    console.error('Error deleting exhibitor document from storage')
+  }
+}
+
 export const EXHIBITOR_CATEGORIES = [
   'Technology',
   'Pharmaceuticals',
@@ -182,6 +221,7 @@ export async function bulkCreateExhibitors(
       contact_email: exhibitor.contact_email,
       contact_phone: exhibitor.contact_phone,
       category: exhibitor.category,
+      leads_enabled: false,
     })
 
     if (error) {

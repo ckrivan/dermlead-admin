@@ -47,6 +47,18 @@ next-env.d.ts
 *.mov
 *.avi
 
-# Claude Code local settings (may contain tokens)
-.claude/settings.local.json
+# Claude Code / AI tooling
+.claude/
+.agents/
+.understand-anything/
+.xcodebuildmcp/
+.playwright-mcp/
+.serena/
 tasks/
+skills-lock.json
+
+# Temp files in project root
+/*.png
+/*.pdf
+/*.avery
+firebase-debug.log

@@ -81,6 +81,7 @@ export default function SessionsPage() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false // eslint-disable-line prefer-const
     async function loadData() {
       if (!selectedEventId) {
         setSessions([])
@@ -95,6 +96,7 @@ export default function SessionsPage() {
           getSessions(selectedEventId),
           getSpeakers(selectedEventId),
         ])
+        if (cancelled) return
         setSessions(sessionsData)
         setSpeakers(speakersData)
 
@@ -106,13 +108,15 @@ export default function SessionsPage() {
           setSelectedDate('')
         }
       } catch (err) {
+        if (cancelled) return
         console.error('Error loading data:', err)
         setError('Failed to load sessions. Check your connection and try again.')
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     loadData()
+    return () => { cancelled = true }
   }, [selectedEventId])
 
   // Get unique dates for day tabs

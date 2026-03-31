@@ -98,6 +98,7 @@ export default function SponsorsPage() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
     async function loadSponsors() {
       if (!selectedEventId) {
         setSponsors([])
@@ -112,16 +113,19 @@ export default function SponsorsPage() {
           getSponsors(selectedEventId),
           getGroups(selectedEventId),
         ])
+        if (cancelled) return
         setSponsors(sponsorsData)
         setGroups(groupsData)
       } catch (err) {
+        if (cancelled) return
         console.error('Error loading sponsors:', err)
         setError('Failed to load sponsors. Check your connection and try again.')
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     loadSponsors()
+    return () => { cancelled = true }
   }, [selectedEventId])
 
   const filteredSponsors = sponsors.filter((sponsor) => {
@@ -199,6 +203,8 @@ export default function SponsorsPage() {
           display_order: 0,
           is_featured: formData.is_featured,
           social_links: null,
+          documents: null,
+          leads_enabled: false,
         })
       }
 
@@ -264,7 +270,7 @@ export default function SponsorsPage() {
   }
 
   const getTierInfo = (tier: string) => {
-    return SPONSOR_TIERS.find((t) => t.value === tier) || SPONSOR_TIERS[3]
+    return SPONSOR_TIERS.find((t) => t.value === tier) || SPONSOR_TIERS[SPONSOR_TIERS.length - 1]
   }
 
   return (

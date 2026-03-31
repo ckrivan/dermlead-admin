@@ -289,11 +289,11 @@ export function EditUserModal({
               type="button"
               onClick={() => setIsActive(!isActive)}
               className={`relative w-11 h-6 rounded-full transition-colors ${
-                isActive ? 'bg-[var(--accent-primary)]' : 'bg-gray-300'
+                isActive ? 'bg-[var(--accent-primary)]' : 'bg-[var(--background-tertiary)]'
               }`}
             >
               <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-[var(--card-bg)] rounded-full transition-transform ${
                   isActive ? 'translate-x-5' : ''
                 }`}
               />

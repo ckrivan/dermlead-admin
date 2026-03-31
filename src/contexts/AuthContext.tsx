@@ -72,15 +72,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Safety net: if auth initialization hangs, stop the spinner.
-    // Do NOT call signOut() here — that destroys a valid session when the
-    // issue is just slow initialization (e.g. lock contention).
+    // Safety net: if auth init hangs, redirect to login.
     const safetyTimer = setTimeout(() => {
-      console.warn('[AuthContext] auth init timed out — unblocking UI')
+      console.warn('[AuthContext] auth init timed out — redirecting to login')
       setLoading(false)
+      window.location.href = '/login'
     }, 5000)
 
-    // Get initial session
+    // Read session from cookies (fast, no network call).
+    // The built-in autoRefreshToken (10s tick) keeps the token fresh —
+    // no manual refresh needed.
     const initAuth = async () => {
       try {
         const {
@@ -103,10 +104,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth()
 
-    // Listen for auth changes
+    // Listen for auth changes — if the session is lost (token expired and
+    // refresh failed), redirect to login instead of leaving a dead UI.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event: AuthChangeEvent, newSession: Session | null) => {
+    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, newSession: Session | null) => {
       try {
         setSession(newSession)
         setUser(newSession?.user ?? null)
@@ -116,6 +118,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null)
           setOrganization(null)
+
+          // Session lost unexpectedly (expired token, refresh failed).
+          // Redirect to login so the user isn't stuck on a dead page.
+          if (event !== 'INITIAL_SESSION') {
+            window.location.href = '/login'
+          }
         }
       } catch (err) {
         console.error('[AuthContext] auth state change failed:', err)

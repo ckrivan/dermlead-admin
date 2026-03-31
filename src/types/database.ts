@@ -80,6 +80,7 @@ export interface BadgeTemplateConfig {
 export interface Speaker {
   id: string;
   event_id: string;
+  attendee_id?: string | null;
   full_name: string;
   credentials: string | null;
   bio: string | null;
@@ -89,6 +90,8 @@ export interface Speaker {
   email: string | null;
   linkedin_url: string | null;
   website_url?: string | null;
+  city?: string | null;
+  state?: string | null;
   role: string[];
   created_at: string;
   updated_at: string;
@@ -142,6 +145,10 @@ export interface Attendee {
   state: string | null;
   postal_code: string | null;
   badge_type: string;
+  badge_types: string[] | null;
+  leads_access: boolean;
+  bio: string | null;
+  photo_url: string | null;
   badge_generated: boolean;
   badge_printed: boolean;
   qr_data: Record<string, unknown> | null;
@@ -244,6 +251,8 @@ export interface Exhibitor {
   category: string | null;
   products_services: string[] | null;
   social_links: Record<string, string> | null;
+  documents: { title: string; url: string }[] | null;
+  leads_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -263,6 +272,8 @@ export interface Sponsor {
   display_order: number;
   is_featured: boolean;
   social_links: Record<string, string> | null;
+  documents: { title: string; url: string }[] | null;
+  leads_enabled: boolean;
   created_at: string;
   updated_at: string;
 }

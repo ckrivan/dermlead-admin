@@ -1,7 +1,8 @@
 'use client'
 
-import { Bell, Menu, Search, X } from 'lucide-react'
+import { Bell, Menu, Moon, Search, Sun, X } from 'lucide-react'
 import { useState } from 'react'
+import { useTheme } from 'next-themes'
 import { UserMenu } from './UserMenu'
 import { useSidebar } from '@/contexts/SidebarContext'
 
@@ -12,6 +13,7 @@ interface HeaderProps {
 
 export function Header({ title, subtitle }: HeaderProps) {
   const { open, isMobile } = useSidebar()
+  const { theme, setTheme } = useTheme()
   const [showMobileSearch, setShowMobileSearch] = useState(false)
 
   return (
@@ -58,6 +60,15 @@ export function Header({ title, subtitle }: HeaderProps) {
             className="md:hidden p-2 rounded-lg hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)] transition-colors"
           >
             {showMobileSearch ? <X size={20} /> : <Search size={20} />}
+          </button>
+
+          {/* Dark mode toggle */}
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="p-2 rounded-lg hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)] transition-colors"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
 
           {/* Notifications */}

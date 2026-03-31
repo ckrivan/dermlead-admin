@@ -1,12 +1,15 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, useCallback, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, CardFooter, Button, Input, Textarea } from '@/components/ui'
 import { getSpeaker, updateSpeaker, uploadSpeakerPhoto, deleteSpeaker } from '@/lib/api/speakers'
+import { getCroppedImg } from '@/lib/utils/cropImage'
 import type { Speaker } from '@/types/database'
-import { ArrowLeft, Upload, User, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, Upload, User, Save, Trash2, Crop, X } from 'lucide-react'
+import Cropper from 'react-easy-crop'
+import type { Area } from 'react-easy-crop'
 import Link from 'next/link'
 
 interface EditSpeakerPageProps {
@@ -24,12 +27,25 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
+  // Crop state
+  const [showCropModal, setShowCropModal] = useState(false)
+  const [cropImage, setCropImage] = useState<string | null>(null)
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
+
+  const onCropComplete = useCallback((_: Area, croppedPixels: Area) => {
+    setCroppedAreaPixels(croppedPixels)
+  }, [])
+
   const [formData, setFormData] = useState({
     full_name: '',
     credentials: '',
     bio: '',
     specialty: '',
     institution: '',
+    city: '',
+    state: '',
     email: '',
     linkedin_url: '',
     website_url: '',
@@ -61,6 +77,8 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
             bio: data.bio || '',
             specialty: data.specialty || '',
             institution: data.institution || '',
+            city: data.city || '',
+            state: data.state || '',
             email: data.email || '',
             linkedin_url: data.linkedin_url || '',
             website_url: data.website_url || '',
@@ -92,12 +110,28 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      setPhotoFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
-        setPhotoPreview(reader.result as string)
+        setCropImage(reader.result as string)
+        setCrop({ x: 0, y: 0 })
+        setZoom(1)
+        setShowCropModal(true)
       }
       reader.readAsDataURL(file)
+    }
+  }
+
+  const handleCropSave = async () => {
+    if (!cropImage || !croppedAreaPixels) return
+    try {
+      const croppedBlob = await getCroppedImg(cropImage, croppedAreaPixels)
+      const croppedFile = new File([croppedBlob], 'photo.jpg', { type: 'image/jpeg' })
+      setPhotoFile(croppedFile)
+      setPhotoPreview(URL.createObjectURL(croppedBlob))
+      setShowCropModal(false)
+      setCropImage(null)
+    } catch (e) {
+      console.error('Error cropping image:', e)
     }
   }
 
@@ -129,6 +163,8 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
         bio: formData.bio || null,
         specialty: formData.specialty || null,
         institution: formData.institution || null,
+        city: formData.city || null,
+        state: formData.state || null,
         email: formData.email || null,
         linkedin_url: formData.linkedin_url || null,
         website_url: formData.website_url || null,
@@ -136,10 +172,11 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
         role: formData.role,
       })
 
+      router.refresh()
       router.push('/speakers')
     } catch (error) {
       console.error('Error updating speaker:', error)
-      alert('Failed to update speaker. Please try again.')
+      alert(`Failed to update speaker: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setSaving(false)
     }
@@ -214,13 +251,29 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
             {/* Photo Upload */}
             <Card>
               <CardBody className="flex flex-col items-center">
-                <div className="relative w-32 h-32 mb-4">
+                <div
+                  className="relative w-32 h-32 mb-4 cursor-pointer group"
+                  onClick={() => {
+                    if (photoPreview) {
+                      setCropImage(photoPreview)
+                      setCrop({ x: 0, y: 0 })
+                      setZoom(1)
+                      setShowCropModal(true)
+                    }
+                  }}
+                  title={photoPreview ? 'Click to crop' : undefined}
+                >
                   {photoPreview ? (
-                    <img
-                      src={photoPreview}
-                      alt="Preview"
-                      className="w-full h-full rounded-full object-cover"
-                    />
+                    <>
+                      <img
+                        src={photoPreview}
+                        alt="Preview"
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                      <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                        <Crop size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </>
                   ) : (
                     <div className="w-full h-full rounded-full bg-[var(--background-tertiary)] flex items-center justify-center">
                       <User size={48} className="text-[var(--foreground-subtle)]" />
@@ -228,24 +281,43 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
                   )}
                 </div>
 
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    icon={<Upload size={16} />}
-                    onClick={() =>
-                      document.querySelector<HTMLInputElement>('input[type="file"]')?.click()
-                    }
-                  >
-                    Change Photo
-                  </Button>
-                </label>
+                <div className="flex gap-2">
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoChange}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      icon={<Upload size={14} />}
+                      onClick={() =>
+                        document.querySelector<HTMLInputElement>('input[type="file"]')?.click()
+                      }
+                    >
+                      Upload
+                    </Button>
+                  </label>
+                  {photoPreview && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      icon={<Crop size={14} />}
+                      onClick={() => {
+                        setCropImage(photoPreview)
+                        setCrop({ x: 0, y: 0 })
+                        setZoom(1)
+                        setShowCropModal(true)
+                      }}
+                    >
+                      Crop
+                    </Button>
+                  )}
+                </div>
 
                 <div className="mt-6 pt-6 border-t border-[var(--card-border)] w-full">
                   <Button
@@ -323,6 +395,23 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
                     />
                   </div>
 
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label="City"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleChange}
+                      placeholder="Orlando"
+                    />
+                    <Input
+                      label="State"
+                      name="state"
+                      value={formData.state}
+                      onChange={handleChange}
+                      placeholder="FL"
+                    />
+                  </div>
+
                   <Textarea
                     label="Bio"
                     name="bio"
@@ -378,6 +467,61 @@ export default function EditSpeakerPage({ params }: EditSpeakerPageProps) {
           </div>
         </form>
       </div>
+
+      {/* Crop Modal */}
+      {showCropModal && cropImage && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
+              <div className="flex items-center gap-2">
+                <Crop size={18} />
+                <h3 className="font-semibold text-[var(--foreground)]">Crop Photo</h3>
+              </div>
+              <button
+                onClick={() => { setShowCropModal(false); setCropImage(null) }}
+                className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)]"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="relative w-full" style={{ height: 400 }}>
+              <Cropper
+                image={cropImage}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                cropShape="round"
+                showGrid={false}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+              />
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-[var(--foreground-muted)]">Zoom</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="flex-1"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => { setShowCropModal(false); setCropImage(null) }}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCropSave} icon={<Crop size={16} />}>
+                  Apply Crop
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

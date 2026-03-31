@@ -44,6 +44,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/privacy') ||
     pathname.startsWith('/terms') ||
     pathname === '/support' ||
+    pathname === '/delete-account' ||
     pathname.startsWith('/mfa-verify') ||
     pathname.startsWith('/mfa-enroll') ||
     pathname === '/'

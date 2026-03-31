@@ -16,7 +16,7 @@ const STATUS_STYLES = {
     label: 'Upcoming',
   },
   past: {
-    badge: 'bg-gray-100 text-gray-500',
+    badge: 'bg-[var(--background-tertiary)] text-[var(--foreground-muted)]',
     label: 'Past',
   },
 }

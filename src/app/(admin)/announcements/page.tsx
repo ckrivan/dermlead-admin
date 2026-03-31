@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button } from '@/components/ui'
 import { getAnnouncements, getBadgeTypeCounts, deleteAnnouncement, sendAnnouncement } from '@/lib/api/announcements'
@@ -26,7 +26,7 @@ export default function AnnouncementsPage() {
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null)
   const [sending, setSending] = useState<string | null>(null)
 
-  const loadData = useCallback(async () => {
+  async function loadData() {
     if (!selectedEventId) {
       setAnnouncements([])
       setGroups([])
@@ -50,11 +50,40 @@ export default function AnnouncementsPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedEventId])
+  }
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    let cancelled = false // eslint-disable-line prefer-const
+    async function fetchData() {
+      if (!selectedEventId) {
+        setAnnouncements([])
+        setGroups([])
+        setBadgeTypeCounts({})
+        setLoading(false)
+        return
+      }
+
+      setLoading(true)
+      try {
+        const [announcementsData, groupsData, counts] = await Promise.all([
+          getAnnouncements(selectedEventId),
+          getGroups(selectedEventId),
+          getBadgeTypeCounts(selectedEventId),
+        ])
+        if (cancelled) return
+        setAnnouncements(announcementsData)
+        setGroups(groupsData)
+        setBadgeTypeCounts(counts)
+      } catch (error) {
+        if (cancelled) return
+        console.error('Error loading data:', error)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    fetchData()
+    return () => { cancelled = true }
+  }, [selectedEventId])
 
   const handleOpenCompose = (announcement?: Announcement) => {
     setEditingAnnouncement(announcement || null)

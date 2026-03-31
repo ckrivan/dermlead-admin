@@ -4,9 +4,10 @@ import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button } from '@/components/ui'
-import { getSpeakers, bulkCreateSpeakers } from '@/lib/api/speakers'
+import { getSpeakers, bulkCreateSpeakers, deleteSpeaker } from '@/lib/api/speakers'
+import { updateAttendee, uploadAttendeePhoto, syncAttendeeToSpeaker } from '@/lib/api/attendees'
 import { getEvents } from '@/lib/api/events'
-import { getGroups } from '@/lib/api/groups'
+import { getGroups, getAllEntityGroupMemberships } from '@/lib/api/groups'
 import { parseCSV, generateSpeakerTemplate, downloadCSV, SpeakerCSVRow } from '@/lib/utils/csv'
 import { GroupAssignment } from '@/components/GroupAssignment'
 import type { Speaker, Event, EventGroup } from '@/types/database'
@@ -18,6 +19,7 @@ export default function SpeakersPage() {
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [groups, setGroups] = useState<EventGroup[]>([])
+  const [speakerGroupMap, setSpeakerGroupMap] = useState<Record<string, EventGroup[]>>({})
   const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,15 +43,21 @@ export default function SpeakersPage() {
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [organisers, setOrganisers] = useState<{id: string, first_name: string, last_name: string, email: string, badge_type: string}[]>([])
 
+  // Attendee-speaker edit state (for speakers with attendee_id — source of truth is the attendee)
+  const [editingAS, setEditingAS] = useState<Speaker | null>(null)
+  const [asForm, setAsForm] = useState({ first_name: '', last_name: '', credentials: '', institution: '', specialty: '', bio: '' })
+  const [asPhotoFile, setAsPhotoFile] = useState<File | null>(null)
+  const [asPhotoPreview, setAsPhotoPreview] = useState<string | null>(null)
+  const [asSaving, setAsSaving] = useState(false)
+  const asFileInputRef = useRef<HTMLInputElement>(null)
+
   // Derive user-facing badges from role array
   // Faculty is internal — faculty-only people are "Speakers"
   const getDerivedBadges = (roles: string[]): string[] => {
     const badges: string[] = []
     if (roles.includes('leader')) badges.push('leader')
     if (roles.includes('organiser')) badges.push('organizer')
-    if (roles.includes('speaker')) badges.push('speaker')
-    // Faculty without specific roles = session speaker
-    if (roles.includes('faculty') && badges.length === 0) badges.push('speaker')
+    if (roles.includes('speaker') || roles.includes('faculty')) badges.push('speaker')
     return badges
   }
 
@@ -98,6 +106,8 @@ export default function SpeakersPage() {
         setSpeakers(speakersData)
         setOrganisers(organisersResult.data || [])
         setGroups(groupsData)
+        const groupMemberships = await getAllEntityGroupMemberships('speaker', selectedEventId, groupsData)
+        setSpeakerGroupMap(groupMemberships)
       } catch (err) {
         console.error('Error loading speakers:', err)
         setError('Failed to load speakers. Check your connection and try again.')
@@ -202,6 +212,64 @@ export default function SpeakersPage() {
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
+    }
+  }
+
+  const openEditAS = (speaker: Speaker) => {
+    if (!speaker.attendee_id) return
+    setEditingAS(speaker)
+    const nameParts = speaker.full_name.split(' ')
+    setAsForm({
+      first_name: nameParts[0] || '',
+      last_name: nameParts.slice(1).join(' ') || '',
+      credentials: speaker.credentials || '',
+      institution: speaker.institution || '',
+      specialty: speaker.specialty || '',
+      bio: speaker.bio || '',
+    })
+    setAsPhotoPreview(speaker.photo_url || null)
+    setAsPhotoFile(null)
+  }
+
+  const handleSaveAS = async () => {
+    if (!editingAS?.attendee_id || !selectedEventId) return
+    setAsSaving(true)
+    try {
+      let photoUrl = editingAS.photo_url
+      if (asPhotoFile) {
+        photoUrl = await uploadAttendeePhoto(editingAS.attendee_id, asPhotoFile)
+      }
+      // Update attendee (source of truth)
+      await updateAttendee(editingAS.attendee_id, {
+        first_name: asForm.first_name,
+        last_name: asForm.last_name,
+        credentials: asForm.credentials || null,
+        institution: asForm.institution || null,
+        specialty: asForm.specialty || null,
+        bio: asForm.bio || null,
+        photo_url: photoUrl,
+      })
+      // Sync to linked speaker record
+      await syncAttendeeToSpeaker(editingAS.attendee_id, {
+        first_name: asForm.first_name,
+        last_name: asForm.last_name,
+        credentials: asForm.credentials || null,
+        institution: asForm.institution || null,
+        specialty: asForm.specialty || null,
+        email: editingAS.email,
+        bio: asForm.bio || null,
+        photo_url: photoUrl,
+        event_id: selectedEventId,
+      })
+      // Refetch speakers
+      const speakersData = await getSpeakers(selectedEventId)
+      setSpeakers(speakersData)
+      setEditingAS(null)
+    } catch (error) {
+      console.error('Error saving attendee-speaker:', error)
+      alert('Failed to save changes')
+    } finally {
+      setAsSaving(false)
     }
   }
 
@@ -480,6 +548,7 @@ export default function SpeakersPage() {
                           entityId={speaker.id}
                           eventId={selectedEventId}
                           availableGroups={groups}
+                          initialGroups={speakerGroupMap[speaker.id] || []}
                           compact={true}
                         />
                       </div>
@@ -506,6 +575,15 @@ export default function SpeakersPage() {
                       size="sm"
                       icon={<Trash2 size={16} />}
                       className="text-[var(--accent-danger)]"
+                      onClick={async () => {
+                        if (!confirm(`Delete ${speaker.full_name}?`)) return
+                        try {
+                          await deleteSpeaker(speaker.id)
+                          setSpeakers(speakers.filter(s => s.id !== speaker.id))
+                        } catch (e) {
+                          console.error('Error deleting speaker:', e)
+                        }
+                      }}
                     >
                       Delete
                     </Button>
@@ -516,6 +594,95 @@ export default function SpeakersPage() {
           </div>
         )}
       </div>
+
+      {/* Attendee-Speaker Edit Modal */}
+      {editingAS && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
+              <h3 className="font-semibold text-lg text-[var(--foreground)]">Edit Speaker Profile</h3>
+              <button onClick={() => setEditingAS(null)} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              {/* Photo */}
+              <div className="flex flex-col items-center gap-3">
+                {(asPhotoPreview || editingAS.photo_url) ? (
+                  <img src={asPhotoPreview || editingAS.photo_url || ''} alt="Photo" className="w-24 h-24 rounded-full object-cover" />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-[var(--background-tertiary)] flex items-center justify-center">
+                    <User size={32} className="text-[var(--foreground-subtle)]" />
+                  </div>
+                )}
+                <input
+                  ref={asFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      setAsPhotoFile(file)
+                      const reader = new FileReader()
+                      reader.onloadend = () => setAsPhotoPreview(reader.result as string)
+                      reader.readAsDataURL(file)
+                    }
+                  }}
+                />
+                <Button variant="secondary" size="sm" onClick={() => asFileInputRef.current?.click()}>
+                  {editingAS.photo_url || asPhotoFile ? 'Change Photo' : 'Upload Photo'}
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">First Name</label>
+                  <input type="text" value={asForm.first_name} onChange={(e) => setAsForm({ ...asForm, first_name: e.target.value })}
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Last Name</label>
+                  <input type="text" value={asForm.last_name} onChange={(e) => setAsForm({ ...asForm, last_name: e.target.value })}
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Credentials</label>
+                  <input type="text" value={asForm.credentials} onChange={(e) => setAsForm({ ...asForm, credentials: e.target.value })} placeholder="MD, PA-C, NP..."
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Specialty</label>
+                  <input type="text" value={asForm.specialty} onChange={(e) => setAsForm({ ...asForm, specialty: e.target.value })}
+                    className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Institution</label>
+                <input type="text" value={asForm.institution} onChange={(e) => setAsForm({ ...asForm, institution: e.target.value })}
+                  className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Bio</label>
+                <textarea value={asForm.bio} onChange={(e) => setAsForm({ ...asForm, bio: e.target.value })} rows={4} placeholder="Speaker biography..."
+                  className="w-full px-3 py-2 border border-[var(--card-border)] rounded-lg bg-[var(--card-bg)] text-[var(--foreground)] text-sm resize-y" />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 p-4 border-t border-[var(--card-border)]">
+              <Button variant="secondary" onClick={() => setEditingAS(null)}>Cancel</Button>
+              <Button onClick={handleSaveAS} disabled={asSaving || !asForm.first_name.trim() || !asForm.last_name.trim()}>
+                {asSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Message Modal */}
       {showMessageModal && (

@@ -57,24 +57,33 @@ export default function BadgesPage() {
 
   // Load attendees and template
   useEffect(() => {
-    if (!selectedEventId) {
-      setAttendees([])
-      setTemplate(null)
-      setLoading(false)
-      return
-    }
+    let cancelled = false // eslint-disable-line prefer-const
+    async function fetchData() {
+      if (!selectedEventId) {
+        setAttendees([])
+        setTemplate(null)
+        setLoading(false)
+        return
+      }
 
-    setLoading(true)
-    Promise.all([
-      getAttendees(selectedEventId),
-      loadTemplate(),
-    ])
-      .then(([data]) => {
+      setLoading(true)
+      try {
+        const [data] = await Promise.all([
+          getAttendees(selectedEventId),
+          loadTemplate(),
+        ])
+        if (cancelled) return
         setAttendees(data)
         setSelected(new Set(data.map((a) => a.id)))
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
+      } catch (error) {
+        if (cancelled) return
+        console.error('Error loading badge data:', error)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    fetchData()
+    return () => { cancelled = true }
   }, [selectedEventId])
 
   async function loadTemplate() {
@@ -424,11 +433,11 @@ export default function BadgesPage() {
     const hasEdit = edits[attendee.id]?.[field] !== undefined
     return (
       <span
-        className={`cursor-pointer hover:bg-gray-100 rounded px-1 py-0.5 text-sm inline-block min-w-[40px] min-h-[24px] ${hasEdit ? 'bg-yellow-50 border-b border-yellow-300' : ''} ${className}`}
+        className={`cursor-pointer hover:bg-[var(--background-tertiary)] rounded px-1 py-0.5 text-sm inline-block min-w-[40px] min-h-[24px] ${hasEdit ? 'bg-[var(--accent-warning)]/10 border-b border-[var(--accent-warning)]' : ''} ${className}`}
         onClick={() => setEditingCell({ id: attendee.id, field })}
         title="Click to edit"
       >
-        {value || <span className="text-gray-300 italic">empty</span>}
+        {value || <span className="text-[var(--foreground-subtle)] italic">empty</span>}
       </span>
     )
   }
@@ -452,7 +461,7 @@ export default function BadgesPage() {
     return (
       <div className="p-4 md:p-8">
         <h1 className="text-2xl font-bold mb-2">Badges</h1>
-        <p className="text-gray-500">Select an event to generate badges.</p>
+        <p className="text-[var(--foreground-muted)]">Select an event to generate badges.</p>
       </div>
     )
   }

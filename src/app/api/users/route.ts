@@ -108,7 +108,15 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'User not found in your organization' }, { status: 404 })
   }
 
-  // Nullify foreign key references before deleting profile
+  // Clean up all foreign key references before deleting profile
+  await admin.from('messages').delete().eq('sender_id', userId)
+  await admin.from('conversations').delete().or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
+  await admin.from('post_comments').delete().eq('author_id', userId)
+  await admin.from('community_posts').delete().eq('author_id', userId)
+  await admin.from('post_likes').delete().eq('user_id', userId)
+  await admin.from('content_reports').delete().eq('reporter_id', userId)
+  await admin.from('user_agenda').delete().eq('user_id', userId)
+  await admin.from('event_registrations').delete().eq('user_id', userId)
   const { error: leadsError } = await admin.from('leads').update({ captured_by: null }).eq('captured_by', userId)
   if (leadsError) {
     console.error('[delete-user] Failed to nullify leads.captured_by:', leadsError.message)

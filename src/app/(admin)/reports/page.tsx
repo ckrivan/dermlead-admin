@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button } from '@/components/ui'
 import { getReports, updateReportStatus, deleteReportedContent } from '@/lib/api/reports'
@@ -56,7 +56,7 @@ export default function ModerationPage() {
   const [activeTab, setActiveTab] = useState<FilterTab>('pending')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  const loadData = useCallback(async () => {
+  async function loadData() {
     setLoading(true)
     try {
       const data = await getReports(selectedEventId || undefined)
@@ -66,11 +66,26 @@ export default function ModerationPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedEventId])
+  }
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    let cancelled = false // eslint-disable-line prefer-const
+    async function fetchData() {
+      setLoading(true)
+      try {
+        const data = await getReports(selectedEventId || undefined)
+        if (cancelled) return
+        setReports(data)
+      } catch (error) {
+        if (cancelled) return
+        console.error('Error loading reports:', error)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    fetchData()
+    return () => { cancelled = true }
+  }, [selectedEventId])
 
   const handleDismiss = async (report: ContentReport) => {
     if (!profile?.id) return
@@ -130,7 +145,7 @@ export default function ModerationPage() {
               onClick={() => setActiveTab(tab.key)}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 activeTab === tab.key
-                  ? 'bg-white text-[var(--foreground)] shadow-sm'
+                  ? 'bg-[var(--card-bg)] text-[var(--foreground)] shadow-sm'
                   : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
               }`}
             >

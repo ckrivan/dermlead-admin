@@ -97,6 +97,7 @@ export default function ExhibitorsPage() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
     async function loadExhibitors() {
       if (!selectedEventId) {
         setExhibitors([])
@@ -111,15 +112,18 @@ export default function ExhibitorsPage() {
           getExhibitors(selectedEventId),
           getGroups(selectedEventId),
         ])
+        if (cancelled) return
         setExhibitors(exhibitorsData)
         setGroups(groupsData)
       } catch (error) {
+        if (cancelled) return
         console.error('Error loading exhibitors:', error)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     loadExhibitors()
+    return () => { cancelled = true }
   }, [selectedEventId])
 
   const filteredExhibitors = exhibitors.filter((exhibitor) => {
@@ -194,6 +198,8 @@ export default function ExhibitorsPage() {
           category: formData.category || null,
           products_services: null,
           social_links: null,
+          documents: null,
+          leads_enabled: false,
         })
       }
 

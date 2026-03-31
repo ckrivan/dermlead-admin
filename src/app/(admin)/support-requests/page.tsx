@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button } from '@/components/ui'
 import { getSupportRequests, updateSupportStatus } from '@/lib/api/support'
@@ -32,7 +32,7 @@ export default function SupportPage() {
   const [activeTab, setActiveTab] = useState<FilterTab>('new')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  const loadData = useCallback(async () => {
+  async function loadData() {
     setLoading(true)
     try {
       const data = await getSupportRequests()
@@ -42,11 +42,26 @@ export default function SupportPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    let cancelled = false // eslint-disable-line prefer-const
+    async function fetchData() {
+      setLoading(true)
+      try {
+        const data = await getSupportRequests()
+        if (cancelled) return
+        setRequests(data)
+      } catch (error) {
+        if (cancelled) return
+        console.error('Error loading support requests:', error)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    fetchData()
+    return () => { cancelled = true }
+  }, [])
 
   const handleStatusChange = async (id: string, status: 'in_progress' | 'resolved') => {
     if (!profile?.id) return

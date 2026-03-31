@@ -6,7 +6,6 @@ export const SPONSOR_TIERS = [
   { value: 'title_sponsor', label: 'Title Sponsor', color: '#1a1a2e' },
   { value: 'presidents_circle', label: "President's Circle", color: '#8b0000' },
   { value: 'bronze', label: 'Bronze', color: '#cd7f32' },
-  { value: 'exhibitor', label: 'Exhibitor', color: '#6b7280' },
 ] as const
 
 export async function getSponsors(eventId: string): Promise<Sponsor[]> {
@@ -196,6 +195,45 @@ export async function uploadSponsorBanner(
   return data.publicUrl
 }
 
+export async function uploadSponsorDocument(
+  sponsorId: string,
+  file: File,
+  title: string
+): Promise<{ title: string; url: string }> {
+  const supabase = createClient()
+
+  const timestamp = Date.now()
+  const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const filePath = `sponsors/${sponsorId}/docs/${timestamp}-${sanitized}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('events')
+    .upload(filePath, file, { upsert: true })
+
+  if (uploadError) {
+    console.error('Error uploading sponsor document:', uploadError)
+    throw uploadError
+  }
+
+  const { data } = supabase.storage.from('events').getPublicUrl(filePath)
+
+  return { title, url: data.publicUrl }
+}
+
+export async function deleteSponsorDocument(documentUrl: string): Promise<void> {
+  const supabase = createClient()
+
+  try {
+    const urlObj = new URL(documentUrl)
+    const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/events\/(.+)/)
+    if (pathMatch) {
+      await supabase.storage.from('events').remove([pathMatch[1]])
+    }
+  } catch {
+    console.error('Error deleting sponsor document from storage')
+  }
+}
+
 export async function bulkCreateSponsors(
   eventId: string,
   rawSponsors: SponsorCSVRow[]
@@ -223,6 +261,7 @@ export async function bulkCreateSponsors(
       contact_email: sponsor.contact_email,
       booth_number: sponsor.booth_number,
       is_featured: sponsor.is_featured,
+      leads_enabled: false,
       logo_url: sponsor.logo_url,
       banner_url: sponsor.banner_url,
       display_order: 0,

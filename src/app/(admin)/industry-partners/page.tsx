@@ -467,7 +467,7 @@ export default function IndustryPartnersPage() {
   }
 
   const getTierInfo = (tier: string) => {
-    return SPONSOR_TIERS.find((t) => t.value === tier) || SPONSOR_TIERS[3]
+    return SPONSOR_TIERS.find((t) => t.value === tier) || SPONSOR_TIERS[SPONSOR_TIERS.length - 1]
   }
 
   // --- People (attendees) import handler for industry partner Excel ---

@@ -1,14 +1,17 @@
 'use client'
 
-import { Suspense, useState, useEffect } from 'react'
+import { Suspense, useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, CardFooter, Button, Input, Textarea } from '@/components/ui'
 import { createSpeaker, updateSpeaker, uploadSpeakerPhoto } from '@/lib/api/speakers'
 import { getEvents } from '@/lib/api/events'
+import { getCroppedImg } from '@/lib/utils/cropImage'
 import type { Event } from '@/types/database'
 import { isAbortError } from '@/contexts/EventContext'
-import { ArrowLeft, Upload, User, Save } from 'lucide-react'
+import { ArrowLeft, Upload, User, Save, Crop, X } from 'lucide-react'
+import Cropper from 'react-easy-crop'
+import type { Area } from 'react-easy-crop'
 import Link from 'next/link'
 
 function NewSpeakerForm() {
@@ -21,6 +24,16 @@ function NewSpeakerForm() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
+  const [showCropModal, setShowCropModal] = useState(false)
+  const [cropImage, setCropImage] = useState<string | null>(null)
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
+
+  const onCropComplete = useCallback((_: Area, croppedPixels: Area) => {
+    setCroppedAreaPixels(croppedPixels)
+  }, [])
+
   const [formData, setFormData] = useState({
     event_id: eventIdParam || '',
     full_name: '',
@@ -28,6 +41,8 @@ function NewSpeakerForm() {
     bio: '',
     specialty: '',
     institution: '',
+    city: '',
+    state: '',
     email: '',
     linkedin_url: '',
     website_url: '',
@@ -83,12 +98,28 @@ function NewSpeakerForm() {
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      setPhotoFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
-        setPhotoPreview(reader.result as string)
+        setCropImage(reader.result as string)
+        setCrop({ x: 0, y: 0 })
+        setZoom(1)
+        setShowCropModal(true)
       }
       reader.readAsDataURL(file)
+    }
+  }
+
+  const handleCropSave = async () => {
+    if (!cropImage || !croppedAreaPixels) return
+    try {
+      const croppedBlob = await getCroppedImg(cropImage, croppedAreaPixels)
+      const croppedFile = new File([croppedBlob], 'photo.jpg', { type: 'image/jpeg' })
+      setPhotoFile(croppedFile)
+      setPhotoPreview(URL.createObjectURL(croppedBlob))
+      setShowCropModal(false)
+      setCropImage(null)
+    } catch (e) {
+      console.error('Error cropping image:', e)
     }
   }
 
@@ -120,6 +151,8 @@ function NewSpeakerForm() {
         bio: formData.bio || null,
         specialty: formData.specialty || null,
         institution: formData.institution || null,
+        city: formData.city || null,
+        state: formData.state || null,
         email: formData.email || null,
         linkedin_url: formData.linkedin_url || null,
         website_url: formData.website_url || null,
@@ -132,6 +165,7 @@ function NewSpeakerForm() {
         await updateSpeaker(speaker.id, { photo_url: photoUrl })
       }
 
+      router.refresh()
       router.push('/speakers')
     } catch (error) {
       console.error('Error creating speaker:', error)
@@ -284,6 +318,23 @@ function NewSpeakerForm() {
                   />
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label="City"
+                    name="city"
+                    value={formData.city}
+                    onChange={handleChange}
+                    placeholder="Orlando"
+                  />
+                  <Input
+                    label="State"
+                    name="state"
+                    value={formData.state}
+                    onChange={handleChange}
+                    placeholder="FL"
+                  />
+                </div>
+
                 <Textarea
                   label="Bio"
                   name="bio"
@@ -338,6 +389,61 @@ function NewSpeakerForm() {
           </div>
         </div>
       </form>
+
+      {/* Crop Modal */}
+      {showCropModal && cropImage && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
+              <div className="flex items-center gap-2">
+                <Crop size={18} />
+                <h3 className="font-semibold text-[var(--foreground)]">Crop Photo</h3>
+              </div>
+              <button
+                onClick={() => { setShowCropModal(false); setCropImage(null) }}
+                className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)]"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="relative w-full" style={{ height: 400 }}>
+              <Cropper
+                image={cropImage}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                cropShape="round"
+                showGrid={false}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+              />
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-[var(--foreground-muted)]">Zoom</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="flex-1"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => { setShowCropModal(false); setCropImage(null) }}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCropSave} icon={<Crop size={16} />}>
+                  Apply Crop
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

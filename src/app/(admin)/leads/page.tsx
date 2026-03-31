@@ -5,6 +5,7 @@ import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button } from '@/components/ui'
 import { getLeads, deleteLead, bulkDeleteLeads } from '@/lib/api/leads'
 import { useEvent } from '@/contexts/EventContext'
+import { createClient } from '@/lib/supabase/client'
 import type { Lead } from '@/types/database'
 import {
   Search,
@@ -14,6 +15,7 @@ import {
   Square,
   Download,
   Filter,
+  User,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 
@@ -35,14 +37,57 @@ export default function LeadsPage() {
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [companyFilter, setCompanyFilter] = useState('')
+  const [repMap, setRepMap] = useState<Record<string, string>>({})
+  const [repCompanyMap, setRepCompanyMap] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    if (!selectedEventId) {
-      setLoading(false)
-      return
+    let cancelled = false // eslint-disable-line prefer-const
+    async function fetchLeads() {
+      if (!selectedEventId) {
+        setLeads([])
+        setLoading(false)
+        return
+      }
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await getLeads(selectedEventId)
+        if (cancelled) return
+        setLeads(data)
+
+        // Build rep name map and rep→company map
+        const repIds = [...new Set(data.map(l => l.captured_by).filter(Boolean))] as string[]
+        if (repIds.length > 0) {
+          const supabase = createClient()
+          const [profilesResult, attendeesResult] = await Promise.all([
+            supabase.from('profiles').select('id, full_name, email, institution').in('id', repIds),
+            supabase.from('attendees').select('profile_id, institution').eq('event_id', selectedEventId).in('profile_id', repIds),
+          ])
+          if (cancelled) return
+          const nameMap: Record<string, string> = {}
+          const companyMap: Record<string, string> = {}
+          for (const p of profilesResult.data || []) {
+            nameMap[p.id] = p.full_name || p.email || 'Unknown'
+            if (p.institution) companyMap[p.id] = p.institution
+          }
+          // Attendee institution overrides profile institution (event-scoped)
+          for (const a of attendeesResult.data || []) {
+            if (a.profile_id && a.institution) companyMap[a.profile_id] = a.institution
+          }
+          setRepMap(nameMap)
+          setRepCompanyMap(companyMap)
+        }
+      } catch (err) {
+        if (cancelled) return
+        console.error('Error loading leads:', err)
+        setError('Failed to load leads')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
-    loadLeads()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchLeads()
+    return () => { cancelled = true }
   }, [selectedEventId])
 
   async function loadLeads() {
@@ -51,6 +96,26 @@ export default function LeadsPage() {
       setError(null)
       const data = await getLeads(selectedEventId)
       setLeads(data)
+
+      const repIds = [...new Set(data.map(l => l.captured_by).filter(Boolean))] as string[]
+      if (repIds.length > 0) {
+        const supabase = createClient()
+        const [profilesResult, attendeesResult] = await Promise.all([
+          supabase.from('profiles').select('id, full_name, email, institution').in('id', repIds),
+          supabase.from('attendees').select('profile_id, institution').eq('event_id', selectedEventId).in('profile_id', repIds),
+        ])
+        const nameMap: Record<string, string> = {}
+        const companyMap: Record<string, string> = {}
+        for (const p of profilesResult.data || []) {
+          nameMap[p.id] = p.full_name || p.email || 'Unknown'
+          if (p.institution) companyMap[p.id] = p.institution
+        }
+        for (const a of attendeesResult.data || []) {
+          if (a.profile_id && a.institution) companyMap[a.profile_id] = a.institution
+        }
+        setRepMap(nameMap)
+        setRepCompanyMap(companyMap)
+      }
     } catch (err) {
       console.error('Error loading leads:', err)
       setError('Failed to load leads')
@@ -79,6 +144,13 @@ export default function LeadsPage() {
     }
     // Capture type filter
     if (captureTypeFilter && lead.capture_type !== captureTypeFilter) return false
+    // Company filter — match rep's company
+    if (companyFilter && lead.captured_by) {
+      const repCompany = repCompanyMap[lead.captured_by]
+      if (repCompany !== companyFilter) return false
+    } else if (companyFilter) {
+      return false
+    }
     return true
   })
 
@@ -145,6 +217,7 @@ export default function LeadsPage() {
       'NPI',
       'Email',
       'Phone',
+      'Captured By',
     ]
     const rows = filteredLeads.map((l) => {
       // Include email/phone only if attendee opted in (contact_shared)
@@ -161,6 +234,7 @@ export default function LeadsPage() {
         l.npi_number || '',
         showContact ? l.work_email : '',
         showContact ? (l.phone || '') : '',
+        l.captured_by ? (repCompanyMap[l.captured_by] || repMap[l.captured_by] || '') : '',
       ]
     })
     const csv = [
@@ -218,7 +292,7 @@ export default function LeadsPage() {
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">
               {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''}
-              {searchQuery || captureTypeFilter ? ` (${leads.length} total)` : ''}
+              {searchQuery || captureTypeFilter || companyFilter ? ` (${leads.length} total)` : ''}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -282,6 +356,23 @@ export default function LeadsPage() {
               ))}
             </select>
           </div>
+          {Object.keys(repCompanyMap).length > 0 && (
+            <div className="relative">
+              <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <select
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+                className="pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
+              >
+                <option value="">All Companies</option>
+                {[...new Set(Object.values(repCompanyMap))]
+                  .sort()
+                  .map((company) => (
+                    <option key={company} value={company}>{company}</option>
+                  ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Error state */}
@@ -335,6 +426,7 @@ export default function LeadsPage() {
                     <th className="px-4 py-3 text-left font-medium text-gray-600">Institution</th>
                     <th className="px-4 py-3 text-left font-medium text-gray-600">Score</th>
                     <th className="px-4 py-3 text-left font-medium text-gray-600">Type</th>
+                    <th className="px-4 py-3 text-left font-medium text-gray-600">Captured By</th>
                     <th className="px-4 py-3 text-left font-medium text-gray-600">Captured</th>
                     <th className="px-4 py-3 text-right font-medium text-gray-600">Actions</th>
                   </tr>
@@ -356,7 +448,9 @@ export default function LeadsPage() {
                       <td className="px-4 py-3 font-medium">
                         {lead.first_name} {lead.last_name}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{lead.work_email}</td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {lead.contact_shared !== false ? lead.work_email : <span className="text-gray-400 italic">Not shared</span>}
+                      </td>
                       <td className="px-4 py-3 text-gray-600">{lead.specialty}</td>
                       <td className="px-4 py-3 text-gray-600">{lead.institution || '—'}</td>
                       <td className="px-4 py-3">{renderStars(lead.lead_score)}</td>
@@ -374,6 +468,16 @@ export default function LeadsPage() {
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {lead.captured_by ? (
+                          <div>
+                            <div className="text-gray-900">{repMap[lead.captured_by] || '—'}</div>
+                            {repCompanyMap[lead.captured_by] && (
+                              <div className="text-xs text-gray-500">{repCompanyMap[lead.captured_by]}</div>
+                            )}
+                          </div>
+                        ) : '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-500">
                         {format(parseISO(lead.created_at), 'MMM d, yyyy')}

@@ -44,51 +44,43 @@ export async function getSpeaker(id: string): Promise<Speaker | null> {
 export async function createSpeaker(
   speaker: Omit<Speaker, 'id' | 'created_at' | 'updated_at'>
 ): Promise<Speaker> {
-  const supabase = createClient()
-
-  const { data, error } = await supabase
-    .from('speakers')
-    .insert(speaker)
-    .select()
-    .single()
-
-  if (error) {
-    console.error('Error creating speaker:', error)
-    throw error
+  const res = await fetch('/api/speakers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ speaker }),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || 'Failed to create speaker')
   }
-
-  return data
+  return await res.json()
 }
 
 export async function updateSpeaker(
   id: string,
   updates: Partial<Omit<Speaker, 'id' | 'created_at' | 'updated_at'>>
 ): Promise<Speaker> {
-  const supabase = createClient()
-
-  const { data, error } = await supabase
-    .from('speakers')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) {
-    console.error('Error updating speaker:', error)
-    throw error
+  const res = await fetch('/api/speakers', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, updates }),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || 'Failed to update speaker')
   }
-
-  return data
+  return await res.json()
 }
 
 export async function deleteSpeaker(id: string): Promise<void> {
-  const supabase = createClient()
-
-  const { error } = await supabase.from('speakers').delete().eq('id', id)
-
-  if (error) {
-    console.error('Error deleting speaker:', error)
-    throw error
+  const res = await fetch('/api/speakers', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || 'Failed to delete speaker')
   }
 }
 
@@ -96,12 +88,10 @@ export async function bulkCreateSpeakers(
   eventId: string,
   speakers: SpeakerCSVRow[]
 ): Promise<{ created: number; errors: string[] }> {
-  const supabase = createClient()
   const errors: string[] = []
   let created = 0
 
   for (const rawSpeaker of speakers) {
-    // Normalize from Whova or our format
     const speaker = normalizeSpeakerRow(rawSpeaker)
 
     if (!speaker.full_name) {
@@ -109,23 +99,25 @@ export async function bulkCreateSpeakers(
       continue
     }
 
-    const { error } = await supabase.from('speakers').insert({
-      event_id: eventId,
-      full_name: speaker.full_name,
-      credentials: speaker.credentials,
-      bio: speaker.bio,
-      specialty: speaker.specialty,
-      institution: speaker.institution,
-      email: speaker.email,
-      linkedin_url: speaker.linkedin_url,
-      website_url: speaker.website_url,
-      photo_url: null,
-    })
-
-    if (error) {
-      errors.push(`Failed to create "${speaker.full_name}": ${error.message}`)
-    } else {
+    try {
+      await createSpeaker({
+        event_id: eventId,
+        full_name: speaker.full_name,
+        credentials: speaker.credentials || null,
+        bio: speaker.bio || null,
+        specialty: speaker.specialty || null,
+        institution: speaker.institution || null,
+        city: null,
+        state: null,
+        email: speaker.email || null,
+        linkedin_url: speaker.linkedin_url || null,
+        website_url: speaker.website_url || null,
+        photo_url: null,
+        role: ['faculty'],
+      })
       created++
+    } catch (e) {
+      errors.push(`Failed to create "${speaker.full_name}": ${e instanceof Error ? e.message : String(e)}`)
     }
   }
 
@@ -136,22 +128,20 @@ export async function uploadSpeakerPhoto(
   speakerId: string,
   file: File
 ): Promise<string> {
-  const supabase = createClient()
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('speakerId', speakerId)
 
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${speakerId}.${fileExt}`
-  const filePath = `speakers/${fileName}`
+  const res = await fetch('/api/speakers/upload', {
+    method: 'POST',
+    body: formData,
+  })
 
-  const { error: uploadError } = await supabase.storage
-    .from('speakers')
-    .upload(filePath, file, { upsert: true })
-
-  if (uploadError) {
-    console.error('Error uploading photo:', uploadError)
-    throw uploadError
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || 'Failed to upload photo')
   }
 
-  const { data } = supabase.storage.from('speakers').getPublicUrl(filePath)
-
-  return data.publicUrl
+  const { publicUrl } = await res.json()
+  return publicUrl
 }

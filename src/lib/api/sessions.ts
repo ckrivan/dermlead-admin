@@ -371,7 +371,7 @@ export const SESSION_TYPES = [
   { value: 'meal', label: 'Meal Break' },
   { value: 'break', label: 'Break' },
   { value: 'exhibition', label: 'Exhibition' },
-  { value: 'other', label: 'Other' },
+  { value: 'other', label: 'Presentation' },
 ]
 
 export const SPEAKER_ROLES = [

@@ -200,6 +200,42 @@ export async function getEntityGroups(
   return groups || []
 }
 
+/**
+ * Batch fetch group memberships for all entities of a given type in an event.
+ * Returns a map of entityId -> EventGroup[].
+ * This replaces N individual getEntityGroups calls with 2 queries total.
+ */
+export async function getAllEntityGroupMemberships(
+  entityType: EntityType,
+  eventId: string,
+  availableGroups: EventGroup[]
+): Promise<Record<string, EventGroup[]>> {
+  const supabase = createClient()
+
+  const { data: memberLinks, error } = await supabase
+    .from('group_members')
+    .select('group_id, entity_id')
+    .eq('entity_type', entityType)
+
+  if (error) {
+    console.error('Error batch fetching group memberships:', error)
+    return {}
+  }
+
+  const groupMap = new Map(availableGroups.map(g => [g.id, g]))
+  const result: Record<string, EventGroup[]> = {}
+
+  for (const link of memberLinks || []) {
+    const group = groupMap.get(link.group_id)
+    if (group) {
+      if (!result[link.entity_id]) result[link.entity_id] = []
+      result[link.entity_id].push(group)
+    }
+  }
+
+  return result
+}
+
 export async function setEntityGroups(
   entityType: EntityType,
   entityId: string,

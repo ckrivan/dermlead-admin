@@ -48,6 +48,7 @@ export default function GroupsPage() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false // eslint-disable-line prefer-const
     async function loadGroups() {
       if (!selectedEventId) {
         setGroups([])
@@ -58,14 +59,17 @@ export default function GroupsPage() {
       setLoading(true)
       try {
         const data = await getGroups(selectedEventId)
+        if (cancelled) return
         setGroups(data)
       } catch (error) {
+        if (cancelled) return
         console.error('Error loading groups:', error)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     loadGroups()
+    return () => { cancelled = true }
   }, [selectedEventId])
 
   const handleOpenModal = (group?: EventGroup) => {

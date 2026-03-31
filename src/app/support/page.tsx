@@ -72,7 +72,7 @@ export default function SupportFormPage() {
       <div className="max-w-lg mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <img src="/images/converge-logo.png" alt="Converge" className="h-10 mx-auto mb-4" />
+          <img src="/images/converge-logo.png" alt="Converge" className="h-20 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900">Support Request</h1>
           <p className="text-gray-600 mt-2">
             Having trouble with the Converge app? Let us know and we&apos;ll help you out.

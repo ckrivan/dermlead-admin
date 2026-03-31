@@ -12,6 +12,7 @@ interface GroupAssignmentProps {
   availableGroups: EventGroup[]
   onGroupsChange?: (groups: EventGroup[]) => void
   compact?: boolean // For table view - shows only badges, click to edit
+  initialGroups?: EventGroup[] // Pre-fetched groups to avoid N+1 queries
 }
 
 export function GroupAssignment({
@@ -21,14 +22,16 @@ export function GroupAssignment({
   availableGroups,
   onGroupsChange,
   compact = true,
+  initialGroups,
 }: GroupAssignmentProps) {
-  const [assignedGroups, setAssignedGroups] = useState<EventGroup[]>([])
+  const [assignedGroups, setAssignedGroups] = useState<EventGroup[]>(initialGroups || [])
   const [isOpen, setIsOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!initialGroups)
   const [saving, setSaving] = useState(false)
 
-  // Fetch assigned groups on mount
+  // Only fetch if no initialGroups provided (backward compat)
   useEffect(() => {
+    if (initialGroups !== undefined) return
     async function fetchGroups() {
       try {
         const groups = await getEntityGroups(entityType, entityId)
@@ -40,7 +43,7 @@ export function GroupAssignment({
       }
     }
     fetchGroups()
-  }, [entityType, entityId])
+  }, [entityType, entityId, initialGroups])
 
   const toggleGroup = async (group: EventGroup) => {
     const isAssigned = assignedGroups.some((g) => g.id === group.id)
