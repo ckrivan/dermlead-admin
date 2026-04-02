@@ -98,6 +98,7 @@ export default function AnnouncementsPage() {
       await loadData()
     } catch (error) {
       console.error('Error deleting announcement:', error)
+      alert(`Failed to delete announcement: ${error instanceof Error ? error.message : error}`)
     }
   }
 

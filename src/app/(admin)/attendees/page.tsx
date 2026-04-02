@@ -72,6 +72,7 @@ export default function AttendeesPage() {
   const [loading, setLoading] = useState(true);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
   const [importResult, setImportResult] = useState<{
     created: number;
     errors: string[];
@@ -390,6 +391,7 @@ export default function AttendeesPage() {
 
     setImporting(true);
     setImportResult(null);
+    setImportProgress(null);
 
     try {
       let rows: AttendeeCSVRow[];
@@ -420,7 +422,9 @@ export default function AttendeesPage() {
         return;
       }
 
-      const result = await bulkCreateAttendees(selectedEventId, rows, groups);
+      const result = await bulkCreateAttendees(selectedEventId, rows, groups, (current, total) => {
+        setImportProgress({ current, total });
+      }, selectedEvent?.organization_id);
       setImportResult(result);
 
       // Reload attendees if any were created
@@ -437,6 +441,7 @@ export default function AttendeesPage() {
       setImportResult({ created: 0, errors: ["Failed to parse file"] });
     } finally {
       setImporting(false);
+      setImportProgress(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -1863,7 +1868,9 @@ export default function AttendeesPage() {
                     <div className="flex flex-col items-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-primary)] mb-2" />
                       <span className="text-sm text-[var(--foreground-muted)]">
-                        Importing...
+                        {importProgress
+                          ? `Importing ${importProgress.current} / ${importProgress.total}...`
+                          : "Preparing import..."}
                       </span>
                     </div>
                   ) : (

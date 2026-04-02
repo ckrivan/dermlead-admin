@@ -27,21 +27,27 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { useEvent } from '@/contexts/EventContext'
 import { useSidebar } from '@/contexts/SidebarContext'
+import type { FeatureToggleKey } from '@/types/database'
 
-const navigation = [
+const navigation: {
+  name: string
+  href: string
+  icon: typeof LayoutDashboard
+  featureKey?: FeatureToggleKey
+}[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Events', href: '/events', icon: Calendar },
-  { name: 'Attendees', href: '/attendees', icon: UserCheck },
-  { name: 'Leads', href: '/leads', icon: Target },
-  { name: 'Badges', href: '/badges', icon: CreditCard },
-  { name: 'Faculty', href: '/speakers', icon: Users },
-  { name: 'Sessions', href: '/sessions', icon: Presentation },
-  { name: 'Industry Partners', href: '/industry-partners', icon: Building2 },
-  { name: 'Announcements', href: '/announcements', icon: Megaphone },
-  { name: 'Moderation', href: '/reports', icon: Shield },
-  { name: 'FAQ', href: '/faq', icon: HelpCircle },
-  { name: 'Support', href: '/support-requests', icon: LifeBuoy },
-  { name: 'Branding', href: '/branding', icon: Palette },
+  { name: 'Attendees', href: '/attendees', icon: UserCheck, featureKey: 'attendees' },
+  { name: 'Leads', href: '/leads', icon: Target, featureKey: 'leads' },
+  { name: 'Badges', href: '/badges', icon: CreditCard, featureKey: 'badges' },
+  { name: 'Faculty', href: '/speakers', icon: Users, featureKey: 'faculty' },
+  { name: 'Sessions', href: '/sessions', icon: Presentation, featureKey: 'sessions' },
+  { name: 'Industry Partners', href: '/industry-partners', icon: Building2, featureKey: 'industry_partners' },
+  { name: 'Announcements', href: '/announcements', icon: Megaphone, featureKey: 'announcements' },
+  { name: 'Moderation', href: '/reports', icon: Shield, featureKey: 'moderation' },
+  { name: 'FAQ', href: '/faq', icon: HelpCircle, featureKey: 'faq' },
+  { name: 'Support', href: '/support-requests', icon: LifeBuoy, featureKey: 'support' },
+  { name: 'Branding', href: '/branding', icon: Palette, featureKey: 'branding' },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
@@ -60,6 +66,12 @@ export function Sidebar() {
   const handleNavClick = () => {
     if (isMobile) close()
   }
+
+  const visibleNavigation = navigation.filter((item) => {
+    if (!item.featureKey) return true
+    if (!selectedEvent?.enabled_features) return true
+    return selectedEvent.enabled_features[item.featureKey] !== false
+  })
 
   // On mobile: show/hide via translate. On desktop: always visible.
   const sidebarWidth = isMobile ? 'w-64' : isCollapsed ? 'w-16' : 'w-64'
@@ -150,7 +162,7 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
-          {navigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const isActive = pathname.startsWith(item.href)
             return (
               <Link

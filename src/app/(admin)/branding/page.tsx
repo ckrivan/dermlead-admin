@@ -13,9 +13,7 @@ import {
   DEFAULT_BRAND_COLOR,
   BrandingSettings,
 } from '@/lib/api/branding'
-import { getEvents } from '@/lib/api/events'
-import type { Event } from '@/types/database'
-import { isAbortError } from '@/contexts/EventContext'
+import { useEvent } from '@/contexts/EventContext'
 import {
   Palette,
   Image,
@@ -43,8 +41,8 @@ const PRESET_COLORS = [
 ]
 
 export default function BrandingPage() {
-  const [events, setEvents] = useState<Event[]>([])
-  const [selectedEventId, setSelectedEventId] = useState<string>('')
+  const { selectedEvent, events, setSelectedEvent } = useEvent()
+  const selectedEventId = selectedEvent?.id ?? ''
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<BrandingSettings>({
@@ -58,25 +56,6 @@ export default function BrandingPage() {
   const logoInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadEvents() {
-      try {
-        const eventsData = await getEvents()
-        if (cancelled) return
-        setEvents(eventsData)
-        if (eventsData.length > 0) {
-          setSelectedEventId(eventsData[0].id)
-        }
-      } catch (err: unknown) {
-        if (cancelled) return
-        if (isAbortError(err)) return
-        console.error('Error loading events:', err)
-      }
-    }
-    loadEvents()
-    return () => { cancelled = true }
-  }, [])
 
   useEffect(() => {
     async function loadBranding() {
@@ -193,8 +172,6 @@ export default function BrandingPage() {
     }
   }
 
-  const selectedEvent = events.find((e) => e.id === selectedEventId)
-
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <Header title="Branding" />
@@ -209,7 +186,10 @@ export default function BrandingPage() {
               </label>
               <select
                 value={selectedEventId}
-                onChange={(e) => setSelectedEventId(e.target.value)}
+                onChange={(e) => {
+                  const ev = events.find((evt) => evt.id === e.target.value)
+                  if (ev) setSelectedEvent(ev)
+                }}
                 className="flex-1 max-w-md px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               >
                 <option value="">Select an event...</option>

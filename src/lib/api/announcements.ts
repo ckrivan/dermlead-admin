@@ -118,26 +118,15 @@ export async function updateAnnouncement(
 }
 
 export async function deleteAnnouncement(id: string): Promise<void> {
-  const supabase = createClient()
+  const res = await fetch('/api/announcements', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  })
 
-  // Fetch the announcement first to get the linked community_post_id
-  const { data: announcement } = await supabase
-    .from('announcements')
-    .select('community_post_id')
-    .eq('id', id)
-    .single()
-
-  // Delete the announcement
-  const { error } = await supabase.from('announcements').delete().eq('id', id)
-
-  if (error) {
-    console.error('Error deleting announcement:', error)
-    throw error
-  }
-
-  // Also delete the linked community post so it disappears from mobile app
-  if (announcement?.community_post_id) {
-    await supabase.from('community_posts').delete().eq('id', announcement.community_post_id)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || 'Failed to delete announcement')
   }
 }
 
@@ -183,10 +172,15 @@ export async function sendAnnouncement(id: string): Promise<{ announcement: Anno
   try {
     const postId = crypto.randomUUID()
 
-    // Set community_post_id first so the trigger sees it
-    await supabase.from('announcements')
+    // Set community_post_id first so the trigger sees it and skips duplicate creation
+    const { error: linkError } = await supabase.from('announcements')
       .update({ community_post_id: postId })
       .eq('id', id)
+
+    if (linkError) {
+      console.error('Failed to link community_post_id — skipping post creation to avoid trigger duplicate:', linkError)
+      throw linkError
+    }
 
     const { data: postData } = await supabase.from('community_posts').insert({
       id: postId,
@@ -224,14 +218,19 @@ export async function sendAnnouncement(id: string): Promise<{ announcement: Anno
       pushBody.badgeTypes = data.target_badge_types
     }
 
-    const { data: pushData, error: pushError } = await supabase.functions.invoke('send-push', {
-      body: pushBody,
+    // Route through server-side API to use service role key
+    const pushRes = await fetch('/api/announcements/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pushBody),
     })
 
-    if (pushError) {
-      pushResult = { sent: 0, total: 0, error: String(pushError) }
-    } else {
-      pushResult = pushData as { sent: number; total: number }
+    const pushJson = await pushRes.json().catch(() => null)
+
+    if (!pushRes.ok) {
+      pushResult = { sent: 0, total: 0, error: pushJson?.error || `Push failed (${pushRes.status})` }
+    } else if (pushJson) {
+      pushResult = pushJson as { sent: number; total: number }
     }
   } catch (pushError) {
     console.error('Push notification failed (non-critical):', pushError)

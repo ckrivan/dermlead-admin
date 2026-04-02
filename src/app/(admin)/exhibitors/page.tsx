@@ -12,7 +12,6 @@ import {
   uploadExhibitorLogo,
   EXHIBITOR_CATEGORIES,
 } from '@/lib/api/exhibitors'
-import { getEvents } from '@/lib/api/events'
 import { getGroups } from '@/lib/api/groups'
 import {
   parseCSV,
@@ -21,8 +20,8 @@ import {
   ExhibitorCSVRow,
 } from '@/lib/utils/csv'
 import { GroupAssignment } from '@/components/GroupAssignment'
-import type { Exhibitor, Event, EventGroup } from '@/types/database'
-import { isAbortError } from '@/contexts/EventContext'
+import type { Exhibitor, EventGroup } from '@/types/database'
+import { useEvent } from '@/contexts/EventContext'
 import {
   Plus,
   Building2,
@@ -40,10 +39,10 @@ import {
 } from 'lucide-react'
 
 export default function ExhibitorsPage() {
+  const { selectedEvent, events, setSelectedEvent } = useEvent()
+  const selectedEventId = selectedEvent?.id ?? ''
   const [exhibitors, setExhibitors] = useState<Exhibitor[]>([])
-  const [events, setEvents] = useState<Event[]>([])
   const [groups, setGroups] = useState<EventGroup[]>([])
-  const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
@@ -76,25 +75,6 @@ export default function ExhibitorsPage() {
     category: '',
   })
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadEvents() {
-      try {
-        const eventsData = await getEvents()
-        if (cancelled) return
-        setEvents(eventsData)
-        if (eventsData.length > 0) {
-          setSelectedEventId(eventsData[0].id)
-        }
-      } catch (err: unknown) {
-        if (cancelled) return
-        if (isAbortError(err)) return
-        console.error('Error loading events:', err)
-      }
-    }
-    loadEvents()
-    return () => { cancelled = true }
-  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -277,7 +257,10 @@ export default function ExhibitorsPage() {
             </label>
             <select
               value={selectedEventId}
-              onChange={(e) => setSelectedEventId(e.target.value)}
+              onChange={(e) => {
+                const ev = events.find((evt) => evt.id === e.target.value)
+                if (ev) setSelectedEvent(ev)
+              }}
               className="px-4 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)]"
             >
               <option value="">Select an event</option>

@@ -11,11 +11,11 @@ import {
   deleteSession,
   duplicateSession,
 } from '@/lib/api/sessions'
-import { getEvents } from '@/lib/api/events'
+// events now provided by useEvent() context
 import { getSpeakers } from '@/lib/api/speakers'
 import { parseCSV, generateSessionTemplate, downloadCSV, SessionCSVRow } from '@/lib/utils/csv'
 import type { Session, Event, Speaker } from '@/types/database'
-import { isAbortError } from '@/contexts/EventContext'
+import { isAbortError, useEvent } from '@/contexts/EventContext'
 import {
   Plus,
   Presentation,
@@ -37,10 +37,10 @@ import {
 import { format, parseISO } from 'date-fns'
 
 export default function SessionsPage() {
+  const { selectedEvent, events, setSelectedEvent } = useEvent()
+  const selectedEventId = selectedEvent?.id ?? ''
   const [sessions, setSessions] = useState<Session[]>([])
-  const [events, setEvents] = useState<Event[]>([])
   const [speakers, setSpeakers] = useState<Speaker[]>([])
-  const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showImportModal, setShowImportModal] = useState(false)
@@ -57,28 +57,6 @@ export default function SessionsPage() {
   const [openMoreMenu, setOpenMoreMenu] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [duplicating, setDuplicating] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    async function loadEvents() {
-      try {
-        const data = await getEvents()
-        if (cancelled) return
-        setEvents(data)
-        if (data.length > 0) {
-          setSelectedEventId(data[0].id)
-        }
-      } catch (err: unknown) {
-        if (cancelled) return
-        if (isAbortError(err)) return
-        console.error('Error loading events:', err)
-        setError('Failed to load events. Check your connection and try again.')
-        setLoading(false)
-      }
-    }
-    loadEvents()
-    return () => { cancelled = true }
-  }, [])
 
   useEffect(() => {
     let cancelled = false // eslint-disable-line prefer-const
@@ -284,7 +262,10 @@ export default function SessionsPage() {
           <label className="text-sm font-medium text-[var(--foreground)]">Event:</label>
           <select
             value={selectedEventId}
-            onChange={(e) => setSelectedEventId(e.target.value)}
+            onChange={(e) => {
+              const ev = events.find((evt) => evt.id === e.target.value)
+              if (ev) setSelectedEvent(ev)
+            }}
             className="px-4 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)] min-w-[250px]"
           >
             <option value="">Select an event</option>

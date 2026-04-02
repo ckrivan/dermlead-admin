@@ -4,16 +4,15 @@ import { useEffect, useState, useRef } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button } from '@/components/ui'
 import { getGroups, createGroup, updateGroup, deleteGroup, initializeDefaultGroups, bulkCreateGroups } from '@/lib/api/groups'
-import { getEvents } from '@/lib/api/events'
 import { parseCSV, generateGroupTemplate, downloadCSV, GroupCSVRow } from '@/lib/utils/csv'
-import type { EventGroup, Event } from '@/types/database'
-import { isAbortError } from '@/contexts/EventContext'
+import type { EventGroup } from '@/types/database'
+import { useEvent } from '@/contexts/EventContext'
 import { Plus, Users, Edit, Trash2, X, Palette, Upload, Download } from 'lucide-react'
 
 export default function GroupsPage() {
+  const { selectedEvent, events, setSelectedEvent } = useEvent()
+  const selectedEventId = selectedEvent?.id ?? ''
   const [groups, setGroups] = useState<EventGroup[]>([])
-  const [events, setEvents] = useState<Event[]>([])
-  const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
@@ -27,25 +26,6 @@ export default function GroupsPage() {
     color: '#3b82f6',
   })
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadEvents() {
-      try {
-        const data = await getEvents()
-        if (cancelled) return
-        setEvents(data)
-        if (data.length > 0) {
-          setSelectedEventId(data[0].id)
-        }
-      } catch (err: unknown) {
-        if (cancelled) return
-        if (isAbortError(err)) return
-        console.error('Error loading events:', err)
-      }
-    }
-    loadEvents()
-    return () => { cancelled = true }
-  }, [])
 
   useEffect(() => {
     let cancelled = false // eslint-disable-line prefer-const
@@ -202,7 +182,10 @@ export default function GroupsPage() {
             <label className="text-sm text-[var(--foreground-muted)]">Event:</label>
             <select
               value={selectedEventId}
-              onChange={(e) => setSelectedEventId(e.target.value)}
+              onChange={(e) => {
+                const ev = events.find((evt) => evt.id === e.target.value)
+                if (ev) setSelectedEvent(ev)
+              }}
               className="px-4 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)]"
             >
               <option value="">Select an event</option>

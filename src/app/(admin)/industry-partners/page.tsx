@@ -25,7 +25,6 @@ import {
   deleteSponsorDocument,
   SPONSOR_TIERS,
 } from '@/lib/api/sponsors'
-import { getEvents } from '@/lib/api/events'
 import { getGroups } from '@/lib/api/groups'
 import {
   parseCSV,
@@ -44,8 +43,8 @@ import {
 } from '@/lib/api/attendees'
 import { GroupAssignment } from '@/components/GroupAssignment'
 import { createClient } from '@/lib/supabase/client'
-import type { Attendee, Exhibitor, Sponsor, Event, EventGroup } from '@/types/database'
-import { isAbortError } from '@/contexts/EventContext'
+import type { Attendee, Exhibitor, Sponsor, EventGroup } from '@/types/database'
+import { useEvent } from '@/contexts/EventContext'
 import {
   Plus,
   Building2,
@@ -69,9 +68,9 @@ import {
 type ActiveTab = 'exhibitors' | 'sponsors'
 
 export default function IndustryPartnersPage() {
+  const { selectedEvent, events, setSelectedEvent } = useEvent()
+  const selectedEventId = selectedEvent?.id ?? ''
   const [activeTab, setActiveTab] = useState<ActiveTab>('exhibitors')
-  const [events, setEvents] = useState<Event[]>([])
-  const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [groups, setGroups] = useState<EventGroup[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -148,26 +147,9 @@ export default function IndustryPartnersPage() {
   const [leadsModalStaff, setLeadsModalStaff] = useState<Attendee[]>([])
   const [leadsModalLoading, setLeadsModalLoading] = useState(false)
 
-  // Load events
-  useEffect(() => {
-    let cancelled = false
-    async function loadEvents() {
-      try {
-        const eventsData = await getEvents()
-        if (cancelled) return
-        setEvents(eventsData)
-        if (eventsData.length > 0) {
-          setSelectedEventId(eventsData[0].id)
-        }
-      } catch (err: unknown) {
-        if (cancelled) return
-        if (isAbortError(err)) return
-        console.error('Error loading events:', err)
-      }
-    }
-    loadEvents()
-    return () => { cancelled = true }
-  }, [])
+  // Booth staff per company (company_name lowercase → attendees)
+  const [boothStaffMap, setBoothStaffMap] = useState<Record<string, Attendee[]>>({})
+
 
   // Load data when event changes
   useEffect(() => {
@@ -182,14 +164,26 @@ export default function IndustryPartnersPage() {
 
       setLoading(true)
       try {
-        const [exhibitorsData, sponsorsData, groupsData] = await Promise.all([
+        const supabase = createClient()
+        const [exhibitorsData, sponsorsData, groupsData, { data: industryAttendees }] = await Promise.all([
           getExhibitors(selectedEventId),
           getSponsors(selectedEventId),
           getGroups(selectedEventId),
+          supabase.from('attendees').select('*').eq('event_id', selectedEventId).eq('badge_type', 'industry').order('last_name'),
         ])
         setExhibitors(exhibitorsData)
         setSponsors(sponsorsData)
         setGroups(groupsData)
+        // Build booth staff map: company name → attendees
+        const staffMap: Record<string, Attendee[]> = {}
+        for (const a of (industryAttendees || []) as Attendee[]) {
+          const key = (a.institution || '').toLowerCase().trim()
+          if (key) {
+            if (!staffMap[key]) staffMap[key] = []
+            staffMap[key].push(a)
+          }
+        }
+        setBoothStaffMap(staffMap)
       } catch (error) {
         console.error('Error loading data:', error)
       } finally {
@@ -588,7 +582,10 @@ export default function IndustryPartnersPage() {
             <label className="text-sm text-[var(--foreground-muted)]">Event:</label>
             <select
               value={selectedEventId}
-              onChange={(e) => setSelectedEventId(e.target.value)}
+              onChange={(e) => {
+                const ev = events.find((evt) => evt.id === e.target.value)
+                if (ev) setSelectedEvent(ev)
+              }}
               className="px-4 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)]"
             >
               <option value="">Select an event</option>
@@ -824,6 +821,33 @@ export default function IndustryPartnersPage() {
                         )}
                       </div>
 
+                      {/* Booth Staff */}
+                      {(() => {
+                        const staff = boothStaffMap[exhibitor.company_name.toLowerCase().trim()] || []
+                        if (staff.length === 0) return null
+                        return (
+                          <div className="mt-3 pt-3 border-t border-[var(--card-border)]">
+                            <p className="text-xs font-medium text-[var(--foreground-muted)] mb-2">
+                              <Users size={12} className="inline mr-1" />
+                              Booth Staff ({staff.length})
+                            </p>
+                            <div className="space-y-1">
+                              {staff.map((person) => (
+                                <div key={person.id} className="flex items-center justify-between text-xs">
+                                  <span className="text-[var(--foreground)]">
+                                    {person.first_name} {person.last_name}
+                                    {person.title ? <span className="text-[var(--foreground-muted)]"> — {person.title}</span> : null}
+                                  </span>
+                                  {person.email && (
+                                    <span className="text-[var(--foreground-muted)] truncate ml-2">{person.email}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })()}
+
                       <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--card-border)]">
                         <div className="flex items-center gap-1">
                           <Tag size={14} className="text-[var(--foreground-muted)] flex-shrink-0" />
@@ -918,6 +942,7 @@ export default function IndustryPartnersPage() {
                     eventId={selectedEventId}
                     onEdit={() => handleOpenSponsorForm(sponsor)}
                     onDelete={() => handleDeleteSponsor(sponsor)}
+                    boothStaff={boothStaffMap[sponsor.company_name.toLowerCase().trim()] || []}
                     onToggleLeads={() => openLeadsModal(sponsor.company_name)}
                   />
                 ))}
@@ -946,6 +971,7 @@ export default function IndustryPartnersPage() {
                             tierInfo={tier}
                             groups={groups}
                             eventId={selectedEventId}
+                            boothStaff={boothStaffMap[sponsor.company_name.toLowerCase().trim()] || []}
                             onEdit={() => handleOpenSponsorForm(sponsor)}
                             onDelete={() => handleDeleteSponsor(sponsor)}
                             onToggleLeads={() => openLeadsModal(sponsor.company_name)}
@@ -1209,6 +1235,95 @@ export default function IndustryPartnersPage() {
                   <p className="text-xs text-[var(--foreground-muted)] mt-2">Save the exhibitor first, then edit to upload documents.</p>
                 )}
               </div>
+
+              {/* Booth Staff Section (edit mode only) */}
+              {editingExhibitor && (
+                <div className="border-t border-[var(--card-border)] pt-4">
+                  <h4 className="text-sm font-medium text-[var(--foreground)] mb-3">
+                    <Users size={14} className="inline mr-1" />
+                    Booth Staff
+                  </h4>
+                  {(() => {
+                    const staff = boothStaffMap[exhibitorFormData.company_name.toLowerCase().trim()] || []
+                    return staff.length > 0 ? (
+                      <div className="space-y-2 mb-3">
+                        {staff.map((person) => (
+                          <div key={person.id} className="flex items-center justify-between p-2 rounded-lg bg-[var(--background-secondary)]">
+                            <div>
+                              <span className="text-sm text-[var(--foreground)]">{person.first_name} {person.last_name}</span>
+                              {person.title && <span className="text-xs text-[var(--foreground-muted)] ml-2">— {person.title}</span>}
+                              {person.email && <p className="text-xs text-[var(--foreground-muted)]">{person.email}</p>}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!confirm(`Remove ${person.first_name} ${person.last_name} from this booth?`)) return
+                                const supabase = createClient()
+                                await supabase.from('attendees').update({ institution: null }).eq('id', person.id)
+                                setBoothStaffMap((prev) => {
+                                  const key = exhibitorFormData.company_name.toLowerCase().trim()
+                                  return { ...prev, [key]: (prev[key] || []).filter((a) => a.id !== person.id) }
+                                })
+                              }}
+                              className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)] hover:text-[var(--accent-danger)]"
+                              title="Remove from booth"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[var(--foreground-muted)] mb-3">No booth staff assigned. Add industry attendees below.</p>
+                    )
+                  })()}
+                  <div className="flex gap-2">
+                    <select
+                      id="exhibitor-add-staff"
+                      className="flex-1 px-3 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--input-focus)]"
+                    >
+                      <option value="">Select attendee to add...</option>
+                      {(() => {
+                        const currentStaffIds = new Set((boothStaffMap[exhibitorFormData.company_name.toLowerCase().trim()] || []).map((a) => a.id))
+                        const allIndustry = Object.values(boothStaffMap).flat()
+                        // Also show unassigned industry attendees (no institution) — fetch from all attendees
+                        return allIndustry
+                          .filter((a) => !currentStaffIds.has(a.id))
+                          .map((a) => (
+                            <option key={a.id} value={a.id}>{a.first_name} {a.last_name} {a.institution ? `(${a.institution})` : ''}</option>
+                          ))
+                      })()}
+                    </select>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      icon={<Plus size={14} />}
+                      onClick={async () => {
+                        const select = document.getElementById('exhibitor-add-staff') as HTMLSelectElement
+                        const attendeeId = select?.value
+                        if (!attendeeId) return
+                        const supabase = createClient()
+                        await supabase.from('attendees').update({
+                          institution: exhibitorFormData.company_name.trim(),
+                          badge_type: 'industry',
+                        }).eq('id', attendeeId)
+                        // Refresh booth staff
+                        const { data: updated } = await supabase.from('attendees').select('*').eq('event_id', selectedEventId).eq('badge_type', 'industry').order('last_name')
+                        const newMap: Record<string, Attendee[]> = {}
+                        for (const a of (updated || []) as Attendee[]) {
+                          const key = (a.institution || '').toLowerCase().trim()
+                          if (key) { if (!newMap[key]) newMap[key] = []; newMap[key].push(a) }
+                        }
+                        setBoothStaffMap(newMap)
+                        select.value = ''
+                      }}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-[var(--card-border)]">
               <Button variant="ghost" onClick={() => setShowExhibitorForm(false)}>Cancel</Button>
@@ -1480,6 +1595,93 @@ export default function IndustryPartnersPage() {
                   <p className="text-xs text-[var(--foreground-muted)] mt-2">Save the sponsor first, then edit to upload documents.</p>
                 )}
               </div>
+
+              {/* Booth Staff Section (edit mode only) */}
+              {editingSponsor && (
+                <div className="border-t border-[var(--card-border)] pt-4">
+                  <h4 className="text-sm font-medium text-[var(--foreground)] mb-3">
+                    <Users size={14} className="inline mr-1" />
+                    Booth Staff
+                  </h4>
+                  {(() => {
+                    const staff = boothStaffMap[sponsorFormData.company_name.toLowerCase().trim()] || []
+                    return staff.length > 0 ? (
+                      <div className="space-y-2 mb-3">
+                        {staff.map((person) => (
+                          <div key={person.id} className="flex items-center justify-between p-2 rounded-lg bg-[var(--background-secondary)]">
+                            <div>
+                              <span className="text-sm text-[var(--foreground)]">{person.first_name} {person.last_name}</span>
+                              {person.title && <span className="text-xs text-[var(--foreground-muted)] ml-2">— {person.title}</span>}
+                              {person.email && <p className="text-xs text-[var(--foreground-muted)]">{person.email}</p>}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!confirm(`Remove ${person.first_name} ${person.last_name} from this booth?`)) return
+                                const supabase = createClient()
+                                await supabase.from('attendees').update({ institution: null }).eq('id', person.id)
+                                setBoothStaffMap((prev) => {
+                                  const key = sponsorFormData.company_name.toLowerCase().trim()
+                                  return { ...prev, [key]: (prev[key] || []).filter((a) => a.id !== person.id) }
+                                })
+                              }}
+                              className="p-1 rounded hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)] hover:text-[var(--accent-danger)]"
+                              title="Remove from booth"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[var(--foreground-muted)] mb-3">No booth staff assigned. Add industry attendees below.</p>
+                    )
+                  })()}
+                  <div className="flex gap-2">
+                    <select
+                      id="sponsor-add-staff"
+                      className="flex-1 px-3 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--input-focus)]"
+                    >
+                      <option value="">Select attendee to add...</option>
+                      {(() => {
+                        const currentStaffIds = new Set((boothStaffMap[sponsorFormData.company_name.toLowerCase().trim()] || []).map((a) => a.id))
+                        const allIndustry = Object.values(boothStaffMap).flat()
+                        return allIndustry
+                          .filter((a) => !currentStaffIds.has(a.id))
+                          .map((a) => (
+                            <option key={a.id} value={a.id}>{a.first_name} {a.last_name} {a.institution ? `(${a.institution})` : ''}</option>
+                          ))
+                      })()}
+                    </select>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      icon={<Plus size={14} />}
+                      onClick={async () => {
+                        const select = document.getElementById('sponsor-add-staff') as HTMLSelectElement
+                        const attendeeId = select?.value
+                        if (!attendeeId) return
+                        const supabase = createClient()
+                        await supabase.from('attendees').update({
+                          institution: sponsorFormData.company_name.trim(),
+                          badge_type: 'industry',
+                        }).eq('id', attendeeId)
+                        const { data: updated } = await supabase.from('attendees').select('*').eq('event_id', selectedEventId).eq('badge_type', 'industry').order('last_name')
+                        const newMap: Record<string, Attendee[]> = {}
+                        for (const a of (updated || []) as Attendee[]) {
+                          const key = (a.institution || '').toLowerCase().trim()
+                          if (key) { if (!newMap[key]) newMap[key] = []; newMap[key].push(a) }
+                        }
+                        setBoothStaffMap(newMap)
+                        select.value = ''
+                      }}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-[var(--card-border)]">
               <Button variant="ghost" onClick={() => setShowSponsorForm(false)}>Cancel</Button>
@@ -1740,6 +1942,7 @@ function SponsorCard({
   tierInfo,
   groups,
   eventId,
+  boothStaff,
   onEdit,
   onDelete,
   onToggleLeads,
@@ -1748,6 +1951,7 @@ function SponsorCard({
   tierInfo: { value: string; label: string; color: string }
   groups: EventGroup[]
   eventId: string
+  boothStaff: Attendee[]
   onEdit: () => void
   onDelete: () => void
   onToggleLeads: () => void
@@ -1821,6 +2025,29 @@ function SponsorCard({
             </div>
           )}
         </div>
+
+        {/* Booth Staff */}
+        {boothStaff.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-[var(--card-border)]">
+            <p className="text-xs font-medium text-[var(--foreground-muted)] mb-2">
+              <Users size={12} className="inline mr-1" />
+              Booth Staff ({boothStaff.length})
+            </p>
+            <div className="space-y-1">
+              {boothStaff.map((person) => (
+                <div key={person.id} className="flex items-center justify-between text-xs">
+                  <span className="text-[var(--foreground)]">
+                    {person.first_name} {person.last_name}
+                    {person.title ? <span className="text-[var(--foreground-muted)]"> — {person.title}</span> : null}
+                  </span>
+                  {person.email && (
+                    <span className="text-[var(--foreground-muted)] truncate ml-2">{person.email}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--card-border)]">
           <div className="flex items-center gap-1">

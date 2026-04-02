@@ -1,12 +1,23 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Event } from "@/types/database";
 
-export async function getEvents(): Promise<Event[]> {
+export async function getEvents(
+  includeArchived = false,
+): Promise<Event[]> {
+  // Archived events are hidden by RLS, so we need the service-role
+  // API route to fetch them.
+  if (includeArchived) {
+    const res = await fetch("/api/events/archived");
+    if (!res.ok) throw new Error("Failed to fetch archived events");
+    return res.json();
+  }
+
   const supabase = createClient();
 
   const { data, error } = await supabase
     .from("events")
     .select("*")
+    .is("archived_at", null)
     .order("start_date", { ascending: false });
 
   if (error) {
@@ -86,43 +97,23 @@ export async function deleteEvent(id: string): Promise<void> {
 }
 
 export async function archiveEvent(id: string): Promise<Event> {
-  const supabase = createClient();
-
-  const { data, error } = await supabase
-    .from("events")
-    .update({
-      archived_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Error archiving event:", error);
-    throw error;
-  }
-
-  return data;
+  const res = await fetch("/api/events/archive", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) throw new Error("Failed to archive event");
+  return res.json();
 }
 
 export async function unarchiveEvent(id: string): Promise<Event> {
-  const supabase = createClient();
-
-  const { data, error } = await supabase
-    .from("events")
-    .update({
-      archived_at: null,
-    })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error("Error unarchiving event:", error);
-    throw error;
-  }
-
-  return data;
+  const res = await fetch("/api/events/archive", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) throw new Error("Failed to unarchive event");
+  return res.json();
 }
 
 export async function uploadEventBanner(

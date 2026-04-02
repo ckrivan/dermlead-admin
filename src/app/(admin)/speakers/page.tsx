@@ -6,21 +6,20 @@ import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button } from '@/components/ui'
 import { getSpeakers, bulkCreateSpeakers, deleteSpeaker } from '@/lib/api/speakers'
 import { updateAttendee, uploadAttendeePhoto, syncAttendeeToSpeaker } from '@/lib/api/attendees'
-import { getEvents } from '@/lib/api/events'
 import { getGroups, getAllEntityGroupMemberships } from '@/lib/api/groups'
 import { parseCSV, generateSpeakerTemplate, downloadCSV, SpeakerCSVRow } from '@/lib/utils/csv'
 import { GroupAssignment } from '@/components/GroupAssignment'
-import type { Speaker, Event, EventGroup } from '@/types/database'
-import { isAbortError } from '@/contexts/EventContext'
+import type { Speaker, EventGroup } from '@/types/database'
+import { useEvent } from '@/contexts/EventContext'
 import { Plus, User, Mail, Building, Edit, Trash2, Upload, Download, X, Send, CheckSquare, Square, Tag } from 'lucide-react'
 import { sendBulkMessage } from '@/lib/api/speaker-messages'
 
 export default function SpeakersPage() {
+  const { selectedEvent, events, setSelectedEvent } = useEvent()
+  const selectedEventId = selectedEvent?.id ?? ''
   const [speakers, setSpeakers] = useState<Speaker[]>([])
-  const [events, setEvents] = useState<Event[]>([])
   const [groups, setGroups] = useState<EventGroup[]>([])
   const [speakerGroupMap, setSpeakerGroupMap] = useState<Record<string, EventGroup[]>>({})
-  const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showImportModal, setShowImportModal] = useState(false)
@@ -61,29 +60,6 @@ export default function SpeakersPage() {
     return badges
   }
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadData() {
-      try {
-        const [eventsData] = await Promise.all([getEvents()])
-        if (cancelled) return
-        setEvents(eventsData)
-
-        // Auto-select first event if available
-        if (eventsData.length > 0) {
-          setSelectedEventId(eventsData[0].id)
-        }
-      } catch (err: unknown) {
-        if (cancelled) return
-        if (isAbortError(err)) return
-        console.error('Error loading events:', err)
-        setError('Failed to load events. Check your connection and try again.')
-        setLoading(false)
-      }
-    }
-    loadData()
-    return () => { cancelled = true }
-  }, [])
 
   useEffect(() => {
     async function loadSpeakers() {
@@ -289,7 +265,10 @@ export default function SpeakersPage() {
             </label>
             <select
               value={selectedEventId}
-              onChange={(e) => setSelectedEventId(e.target.value)}
+              onChange={(e) => {
+                const ev = events.find((evt) => evt.id === e.target.value)
+                if (ev) setSelectedEvent(ev)
+              }}
               className="px-4 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)]"
             >
               <option value="">Select an event</option>

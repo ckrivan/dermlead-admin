@@ -18,23 +18,53 @@ import {
   updateEvent,
   deleteEvent,
   archiveEvent,
+  unarchiveEvent,
   uploadEventBanner,
   uploadEventLogo,
   generateSlug,
   generateInviteCode,
 } from "@/lib/api/events";
-import type { Event } from "@/types/database";
+import type { Event, EnabledFeatures, FeatureToggleKey } from "@/types/database";
 import {
   ArrowLeft,
   Save,
   Trash2,
   Archive,
+  ArchiveRestore,
   Upload,
   RefreshCw,
   X,
   Plus,
 } from "lucide-react";
 import Link from "next/link";
+
+const DEFAULT_FEATURES: EnabledFeatures = {
+  leads: true,
+  badges: true,
+  faculty: true,
+  sessions: true,
+  industry_partners: true,
+  announcements: true,
+  moderation: true,
+  faq: true,
+  support: true,
+  branding: true,
+  attendees: true,
+};
+
+const FEATURE_LABELS: { key: FeatureToggleKey; label: string }[] = [
+  { key: 'attendees', label: 'Attendees' },
+  { key: 'leads', label: 'Leads' },
+  { key: 'badges', label: 'Badges' },
+  { key: 'faculty', label: 'Faculty' },
+  { key: 'sessions', label: 'Sessions' },
+  { key: 'industry_partners', label: 'Industry Partners' },
+  { key: 'announcements', label: 'Announcements' },
+  { key: 'moderation', label: 'Moderation' },
+  { key: 'faq', label: 'FAQ' },
+  { key: 'support', label: 'Support' },
+  { key: 'branding', label: 'Branding' },
+];
 
 interface EditEventPageProps {
   params: Promise<{ id: string }>;
@@ -66,6 +96,7 @@ export default function EditEventPage({ params }: EditEventPageProps) {
     lead_access_days: "14",
   });
 
+  const [enabledFeatures, setEnabledFeatures] = useState<EnabledFeatures>(DEFAULT_FEATURES);
   const [tracks, setTracks] = useState<string[]>([]);
   const [newTrack, setNewTrack] = useState("");
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
@@ -89,6 +120,7 @@ export default function EditEventPage({ params }: EditEventPageProps) {
             lead_access_days: String(data.lead_access_days ?? 14),
           });
           setTracks([]);
+          setEnabledFeatures({ ...DEFAULT_FEATURES, ...(data.enabled_features ?? {}) });
           setBannerPreview(data.banner_url);
           setLogoPreview(data.logo_url);
         }
@@ -100,6 +132,10 @@ export default function EditEventPage({ params }: EditEventPageProps) {
     }
     loadEvent();
   }, [id]);
+
+  const handleFeatureToggle = (key: FeatureToggleKey) => {
+    setEnabledFeatures((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -203,6 +239,7 @@ export default function EditEventPage({ params }: EditEventPageProps) {
         invite_code: formData.invite_code || null,
         primary_color: formData.primary_color,
         lead_access_days: parseInt(formData.lead_access_days) || 14,
+        enabled_features: enabledFeatures,
       });
 
       router.push("/events");
@@ -239,6 +276,19 @@ export default function EditEventPage({ params }: EditEventPageProps) {
     } finally {
       setArchiving(false);
       setShowArchiveDialog(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    setArchiving(true);
+    try {
+      const updated = await unarchiveEvent(id);
+      setEvent(updated);
+    } catch (error) {
+      console.error("Error unarchiving event:", error);
+      alert("Failed to unarchive event. Please try again.");
+    } finally {
+      setArchiving(false);
     }
   };
 
@@ -427,18 +477,31 @@ export default function EditEventPage({ params }: EditEventPageProps) {
                     Danger Zone
                   </h3>
                   <p className="text-sm text-[var(--foreground-muted)] mb-4">
-                    Archive this event to hide it from the list, or permanently
-                    delete it along with all associated data.
+                    {event.archived_at
+                      ? "This event is archived. Unarchive it to make it visible again, or permanently delete it."
+                      : "Archive this event to hide it from the list, or permanently delete it along with all associated data."}
                   </p>
                   <div className="flex gap-3">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      icon={<Archive size={16} />}
-                      onClick={() => setShowArchiveDialog(true)}
-                    >
-                      Archive Event
-                    </Button>
+                    {event.archived_at ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        icon={<ArchiveRestore size={16} />}
+                        onClick={handleUnarchive}
+                        loading={archiving}
+                      >
+                        Unarchive Event
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        icon={<Archive size={16} />}
+                        onClick={() => setShowArchiveDialog(true)}
+                      >
+                        Archive Event
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="danger"
@@ -454,6 +517,50 @@ export default function EditEventPage({ params }: EditEventPageProps) {
 
             {/* Sidebar */}
             <div className="space-y-6">
+              {/* Feature Toggles */}
+              <Card>
+                <CardBody className="space-y-4">
+                  <h3 className="font-semibold text-[var(--foreground)]">
+                    Features
+                  </h3>
+                  <p className="text-sm text-[var(--foreground-muted)]">
+                    Toggle sidebar sections for this event. Disabled features
+                    are hidden from navigation.
+                  </p>
+                  <div className="space-y-3">
+                    {FEATURE_LABELS.map(({ key, label }) => (
+                      <label
+                        key={key}
+                        className="flex items-center justify-between cursor-pointer"
+                      >
+                        <span className="text-sm text-[var(--foreground)]">
+                          {label}
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={enabledFeatures[key]}
+                          onClick={() => handleFeatureToggle(key)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            enabledFeatures[key]
+                              ? 'bg-[var(--accent-primary)]'
+                              : 'bg-[var(--input-border)]'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                              enabledFeatures[key]
+                                ? 'translate-x-6'
+                                : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </label>
+                    ))}
+                  </div>
+                </CardBody>
+              </Card>
+
               {/* Banner Upload */}
               <Card>
                 <CardBody className="space-y-4">

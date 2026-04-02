@@ -167,8 +167,14 @@ export function mapExcelRowToAttendee(
         city = combined.substring(0, lastComma).trim()
         state = combined.substring(lastComma + 1).trim()
       } else {
-        // No comma — might be just a city name like "Cambridge"
-        city = combined
+        // No comma — check if it's just a state abbreviation (e.g., "DC", "TX")
+        const validAbbrevs = new Set(Object.values(STATE_MAP))
+        const upper = combined.trim().toUpperCase()
+        if (validAbbrevs.has(upper) || STATE_MAP[combined.trim().toLowerCase()]) {
+          state = combined
+        } else {
+          city = combined
+        }
       }
     }
   } else {
@@ -191,7 +197,10 @@ export function mapExcelRowToAttendee(
     city: city,
     state: normalizeState(state),
     postal_code: get(zipCol),
-    badge_type: get(badgeCol) || mapRoleToBadgeType(get(roleCol)) || defaultBadgeType,
+    badge_type: get(badgeCol) || mapRoleToBadgeType(get(roleCol))
+      // Auto-detect industry template: has "Company Name" column but no badge/role column
+      || (!badgeCol && !roleCol && findHeader(headers, 'company') ? 'industry' : '')
+      || defaultBadgeType,
     groups: get(groupsCol),
   }
 }

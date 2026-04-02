@@ -455,10 +455,68 @@ export async function bulkCreateAttendees(
   eventId: string,
   attendees: AttendeeCSVRow[],
   existingGroups: AttendeeGroup[],
+  onProgress?: (current: number, total: number) => void,
+  organizationId?: string,
 ): Promise<{ created: number; errors: string[] }> {
   const supabase = createClient();
   const errors: string[] = [];
   let created = 0;
+
+  // Resolve organization_id if not provided — look it up from the event
+  let resolvedOrgId = organizationId;
+  if (!resolvedOrgId) {
+    const { data: eventData } = await supabase
+      .from("events")
+      .select("organization_id")
+      .eq("id", eventId)
+      .single();
+    resolvedOrgId = eventData?.organization_id || undefined;
+  }
+
+  // ── Batch pre-fetch: existing attendees & profiles ──────────────────
+  // Collect all emails up front so we can query in bulk (2 queries instead of N*2)
+  const emailSet = new Set<string>();
+  for (const row of attendees) {
+    if (row.email?.trim()) emailSet.add(row.email.trim().toLowerCase());
+  }
+  const allEmails = [...emailSet];
+
+  // Fetch all existing attendees for this event in one query
+  const existingAttendeeMap = new Map<string, {
+    id: string; credentials: string | null; specialty: string | null;
+    institution: string | null; npi_number: string | null; street_address: string | null;
+    city: string | null; state: string | null; postal_code: string | null;
+    phone: string | null; title: string | null;
+  }>();
+  if (allEmails.length > 0) {
+    // Supabase .in() has a limit, so chunk into batches of 200
+    for (let i = 0; i < allEmails.length; i += 200) {
+      const chunk = allEmails.slice(i, i + 200);
+      const { data: existingRows } = await supabase
+        .from("attendees")
+        .select("id,email,credentials,specialty,institution,npi_number,street_address,city,state,postal_code,phone,title")
+        .eq("event_id", eventId)
+        .in("email", chunk);
+      for (const row of existingRows || []) {
+        existingAttendeeMap.set((row.email as string).toLowerCase(), row);
+      }
+    }
+  }
+
+  // Batch fetch profile IDs by email
+  const profileMap = new Map<string, string>();
+  if (allEmails.length > 0) {
+    for (let i = 0; i < allEmails.length; i += 200) {
+      const chunk = allEmails.slice(i, i + 200);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id,email")
+        .in("email", chunk);
+      for (const p of profiles || []) {
+        if (p.email) profileMap.set(p.email.toLowerCase(), p.id);
+      }
+    }
+  }
 
   // Create a lookup map for groups by name (case-insensitive)
   const groupMap = new Map<string, string>();
@@ -469,7 +527,36 @@ export async function bulkCreateAttendees(
   // Track new groups that need to be created
   const newGroups = new Map<string, string>(); // name -> id
 
-  for (const row of attendees) {
+  // Pre-fetch existing exhibitors AND sponsors for auto-linking industry reps
+  // Maps lowercase name → canonical (DB) name for normalization
+  // Checks both tables to avoid creating exhibitor duplicates of sponsors
+  const companyCanonicalName = new Map<string, string>();
+  {
+    const [{ data: exhibitors }, { data: sponsors }] = await Promise.all([
+      supabase.from("exhibitors").select("company_name").eq("event_id", eventId),
+      supabase.from("sponsors").select("company_name").eq("event_id", eventId),
+    ]);
+    for (const ex of exhibitors || []) {
+      const name = ex.company_name as string;
+      companyCanonicalName.set(name.toLowerCase().trim(), name);
+    }
+    // Sponsors take precedence — if a company is both, use sponsor name
+    for (const sp of sponsors || []) {
+      const name = sp.company_name as string;
+      companyCanonicalName.set(name.toLowerCase().trim(), name);
+    }
+  }
+  // Track exhibitors created during this import
+  const createdExhibitors = new Map<string, string>(); // lowercase → canonical
+
+  const total = attendees.length;
+
+  for (let idx = 0; idx < attendees.length; idx++) {
+    const row = attendees[idx];
+
+    // Report progress every row
+    if (onProgress) onProgress(idx + 1, total);
+
     // Handle name - support both full_name and first_name/last_name
     let firstName = row.first_name?.trim() || "";
     let lastName = row.last_name?.trim() || "";
@@ -490,25 +577,30 @@ export async function bulkCreateAttendees(
       continue;
     }
 
-    // Auto-link to profile if email matches
     const attendeeEmail = row.email.trim().toLowerCase();
 
-    // Check for existing attendee with same email in this event (duplicate detection)
-    const { data: existing } = await supabase
-      .from("attendees")
-      .select("id,credentials,specialty,institution,npi_number,street_address,city,state,postal_code,phone,title")
-      .eq("event_id", eventId)
-      .ilike("email", attendeeEmail)
-      .limit(1)
-      .maybeSingle();
+    // Check pre-fetched existing attendee map (no network call)
+    const existing = existingAttendeeMap.get(attendeeEmail);
 
     if (existing) {
+      // Normalize institution to canonical exhibitor name
+      const rawInst = row.institution?.trim();
+      let canonicalInst: string | undefined;
+      if (rawInst) {
+        const instKey = rawInst.toLowerCase().trim();
+        canonicalInst = companyCanonicalName.get(instKey)
+          || createdExhibitors.get(instKey)
+          || [...companyCanonicalName.entries()].find(([k]) => k.includes(instKey) || instKey.includes(k))?.[1]
+          || [...createdExhibitors.entries()].find(([k]) => k.includes(instKey) || instKey.includes(k))?.[1]
+          || rawInst;
+      }
+
       // Fill in blank fields from the import data (don't overwrite existing values)
       const fillFields: Record<string, string> = {};
       const fieldMap: Record<string, string | undefined> = {
         credentials: row.credentials?.trim(),
         specialty: row.specialty?.trim(),
-        institution: row.institution?.trim(),
+        institution: canonicalInst,
         npi_number: row.npi_number?.trim(),
         street_address: row.street_address?.trim(),
         city: row.city?.trim(),
@@ -522,6 +614,12 @@ export async function bulkCreateAttendees(
           fillFields[field] = newVal;
         }
       }
+
+      // Also normalize institution if it exists but doesn't match canonical name
+      if (canonicalInst && existing.institution && existing.institution !== canonicalInst) {
+        fillFields.institution = canonicalInst;
+      }
+
       if (Object.keys(fillFields).length > 0) {
         await supabase.from("attendees").update(fillFields).eq("id", existing.id);
         errors.push(`Updated "${firstName} ${lastName}": filled ${Object.keys(fillFields).join(", ")}`);
@@ -531,13 +629,28 @@ export async function bulkCreateAttendees(
       continue;
     }
 
-    const profileId = await lookupProfileByEmail(attendeeEmail);
+    // Use pre-fetched profile ID (no network call)
+    const profileId = profileMap.get(attendeeEmail) ?? null;
+
+    // Normalize institution to canonical exhibitor name if possible
+    const rawInstitution = row.institution?.trim() || null;
+    let normalizedInstitution = rawInstitution;
+    if (rawInstitution) {
+      const key = rawInstitution.toLowerCase().trim();
+      // Exact match first, then check if any exhibitor name contains this or vice versa
+      const canonical = companyCanonicalName.get(key)
+        || createdExhibitors.get(key)
+        || [...companyCanonicalName.entries()].find(([k, _]) => k.includes(key) || key.includes(k))?.[1]
+        || [...createdExhibitors.entries()].find(([k, _]) => k.includes(key) || key.includes(k))?.[1];
+      if (canonical) normalizedInstitution = canonical;
+    }
 
     // Create the attendee
     const { data: createdAttendee, error: attendeeError } = await supabase
       .from("attendees")
       .insert({
         event_id: eventId,
+        organization_id: resolvedOrgId || "",
         first_name: firstName,
         last_name: lastName,
         email: attendeeEmail,
@@ -549,7 +662,7 @@ export async function bulkCreateAttendees(
         credentials: row.credentials?.trim() || null,
         npi_number: row.npi_number?.trim() || null,
         specialty: row.specialty?.trim() || null,
-        institution: row.institution?.trim() || null,
+        institution: normalizedInstitution,
         phone: row.phone?.trim() || null,
         title: row.title?.trim() || null,
         street_address: row.street_address?.trim() || null,
@@ -604,6 +717,29 @@ export async function bulkCreateAttendees(
           state: row.state?.trim() || null,
           role: speakerRole,
         });
+      }
+    }
+
+    // Auto-create exhibitor record for industry reps if company doesn't exist yet
+    // Uses fuzzy matching (contains) to avoid duplicates like "Leo Pharma" vs "LEO Pharma"
+    if (badgeType === "industry" && normalizedInstitution) {
+      const companyKey = normalizedInstitution.toLowerCase().trim();
+      const alreadyExists = companyCanonicalName.has(companyKey)
+        || createdExhibitors.has(companyKey)
+        || [...companyCanonicalName.keys()].some((k) => k.includes(companyKey) || companyKey.includes(k))
+        || [...createdExhibitors.keys()].some((k) => k.includes(companyKey) || companyKey.includes(k));
+      if (!alreadyExists) {
+        const { error: exError } = await supabase.from("exhibitors").insert({
+          event_id: eventId,
+          company_name: normalizedInstitution,
+          contact_name: `${firstName} ${lastName}`.trim(),
+          contact_email: attendeeEmail,
+          contact_phone: row.phone?.trim() || null,
+        });
+        if (!exError) {
+          createdExhibitors.set(companyKey, normalizedInstitution);
+          companyCanonicalName.set(companyKey, normalizedInstitution);
+        }
       }
     }
 

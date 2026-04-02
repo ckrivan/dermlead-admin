@@ -6,7 +6,7 @@ import { Card, CardBody, Button } from '@/components/ui'
 import { getEvents, getEventStatus, getEventStats } from '@/lib/api/events'
 import type { Event } from '@/types/database'
 import { isAbortError } from '@/contexts/EventContext'
-import { Plus, Calendar, MapPin, Users, Grid3x3, List, Search } from 'lucide-react'
+import { Plus, Calendar, MapPin, Users, Grid3x3, List, Search, ArchiveRestore } from 'lucide-react'
 import { format } from 'date-fns'
 import Link from 'next/link'
 
@@ -28,13 +28,13 @@ export default function EventsPage() {
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'upcoming' | 'active' | 'past'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'upcoming' | 'active' | 'past' | 'archived'>('all')
 
   useEffect(() => {
     let cancelled = false
     async function loadEvents() {
       try {
-        const data = await getEvents()
+        const data = await getEvents(statusFilter === 'archived')
         if (cancelled) return
 
         // Load stats for each event
@@ -64,7 +64,7 @@ export default function EventsPage() {
     }
     loadEvents()
     return () => { cancelled = true }
-  }, [])
+  }, [statusFilter])
 
   useEffect(() => {
     let filtered = events
@@ -79,7 +79,9 @@ export default function EventsPage() {
     }
 
     // Filter by status
-    if (statusFilter !== 'all') {
+    if (statusFilter === 'archived') {
+      filtered = filtered.filter((event) => event.archived_at != null)
+    } else if (statusFilter !== 'all') {
       filtered = filtered.filter((event) => getEventStatus(event) === statusFilter)
     }
 
@@ -87,6 +89,14 @@ export default function EventsPage() {
   }, [searchQuery, statusFilter, events])
 
   const getStatusBadge = (event: Event) => {
+    if (event.archived_at) {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500">
+          Archived
+        </span>
+      )
+    }
+
     const status = getEventStatus(event)
     const colors = {
       upcoming: 'bg-blue-500/10 text-blue-500',
@@ -136,6 +146,7 @@ export default function EventsPage() {
               <option value="upcoming">Upcoming</option>
               <option value="active">Active</option>
               <option value="past">Past</option>
+              <option value="archived">Archived</option>
             </select>
           </div>
 

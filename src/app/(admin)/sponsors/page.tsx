@@ -12,7 +12,6 @@ import {
   uploadSponsorLogo,
   SPONSOR_TIERS,
 } from '@/lib/api/sponsors'
-import { getEvents } from '@/lib/api/events'
 import { getGroups } from '@/lib/api/groups'
 import {
   parseCSV,
@@ -21,8 +20,8 @@ import {
   SponsorCSVRow,
 } from '@/lib/utils/csv'
 import { GroupAssignment } from '@/components/GroupAssignment'
-import type { Sponsor, Event, EventGroup } from '@/types/database'
-import { isAbortError } from '@/contexts/EventContext'
+import type { Sponsor, EventGroup } from '@/types/database'
+import { useEvent } from '@/contexts/EventContext'
 import {
   Plus,
   Award,
@@ -39,10 +38,10 @@ import {
 } from 'lucide-react'
 
 export default function SponsorsPage() {
+  const { selectedEvent, events, setSelectedEvent } = useEvent()
+  const selectedEventId = selectedEvent?.id ?? ''
   const [sponsors, setSponsors] = useState<Sponsor[]>([])
-  const [events, setEvents] = useState<Event[]>([])
   const [groups, setGroups] = useState<EventGroup[]>([])
-  const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedTier, setSelectedTier] = useState<string>('')
@@ -75,27 +74,6 @@ export default function SponsorsPage() {
     is_featured: false,
   })
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadEvents() {
-      try {
-        const eventsData = await getEvents()
-        if (cancelled) return
-        setEvents(eventsData)
-        if (eventsData.length > 0) {
-          setSelectedEventId(eventsData[0].id)
-        }
-      } catch (err: unknown) {
-        if (cancelled) return
-        if (isAbortError(err)) return
-        console.error('Error loading events:', err)
-        setError('Failed to load events. Check your connection and try again.')
-        setLoading(false)
-      }
-    }
-    loadEvents()
-    return () => { cancelled = true }
-  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -286,7 +264,10 @@ export default function SponsorsPage() {
             </label>
             <select
               value={selectedEventId}
-              onChange={(e) => setSelectedEventId(e.target.value)}
+              onChange={(e) => {
+                const ev = events.find((evt) => evt.id === e.target.value)
+                if (ev) setSelectedEvent(ev)
+              }}
               className="px-4 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] focus:outline-none focus:border-[var(--input-focus)]"
             >
               <option value="">Select an event</option>

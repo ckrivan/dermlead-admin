@@ -14,7 +14,7 @@ import {
 } from '@/lib/api/sessions'
 import { getSpeakers } from '@/lib/api/speakers'
 import type { Speaker } from '@/types/database'
-import { ArrowLeft, Save, Plus, X, User, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, Plus, X, User, Trash2, Upload, FileText, Image as ImageIcon } from 'lucide-react'
 import Link from 'next/link'
 
 interface SpeakerAssignment {
@@ -36,6 +36,8 @@ export default function EditSessionPage({ params }: EditSessionPageProps) {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [speakerAssignments, setSpeakerAssignments] = useState<SpeakerAssignment[]>([])
+  const [documents, setDocuments] = useState<{ title: string; url: string }[]>([])
+  const [uploading, setUploading] = useState(false)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -72,6 +74,7 @@ export default function EditSessionPage({ params }: EditSessionPageProps) {
               role: s.role,
             }))
           )
+          setDocuments(data.documents || [])
 
           // Load speakers for this event
           const speakersData = await getSpeakers(data.event_id)
@@ -85,6 +88,39 @@ export default function EditSessionPage({ params }: EditSessionPageProps) {
     }
     loadSession()
   }, [id])
+
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('sessionId', id)
+
+      const res = await fetch('/api/sessions/upload', { method: 'POST', body: form })
+      const data = await res.json()
+
+      if (!res.ok) {
+        alert(data.error || 'Upload failed')
+        return
+      }
+
+      const title = file.name.replace(/\.[^.]+$/, '')
+      setDocuments((prev) => [...prev, { title, url: data.publicUrl }])
+    } catch (error) {
+      console.error('Upload error:', error)
+      alert('Failed to upload file')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  const removeDocument = (index: number) => {
+    setDocuments((prev) => prev.filter((_, i) => i !== index))
+  }
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -145,6 +181,7 @@ export default function EditSessionPage({ params }: EditSessionPageProps) {
           end_time: formData.end_time,
           location: formData.location || null,
           track: formData.track || null,
+          documents: documents.length > 0 ? documents : null,
         },
         validAssignments
       )
@@ -248,6 +285,55 @@ export default function EditSessionPage({ params }: EditSessionPageProps) {
                     placeholder="Session description..."
                     rows={3}
                   />
+
+                  {/* Documents / Images */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-[var(--foreground)]">
+                      Documents & Images
+                    </label>
+                    {documents.length > 0 && (
+                      <div className="space-y-2">
+                        {documents.map((doc, i) => {
+                          const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.url)
+                          return (
+                            <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-[var(--background-tertiary)]">
+                              {isImage ? <ImageIcon size={16} className="text-[var(--accent-primary)] shrink-0" /> : <FileText size={16} className="text-red-500 shrink-0" />}
+                              <input
+                                type="text"
+                                value={doc.title}
+                                onChange={(e) => {
+                                  const updated = [...documents]
+                                  updated[i] = { ...updated[i], title: e.target.value }
+                                  setDocuments(updated)
+                                }}
+                                className="flex-1 text-sm bg-transparent border-none outline-none text-[var(--foreground)]"
+                                placeholder="Document title"
+                              />
+                              <a href={doc.url} target="_blank" rel="noreferrer" className="text-xs text-[var(--accent-primary)] hover:underline shrink-0">
+                                Preview
+                              </a>
+                              <button type="button" onClick={() => removeDocument(i)} className="p-1 rounded hover:bg-[var(--background)] text-[var(--foreground-muted)]">
+                                <X size={14} />
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                    <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[var(--input-border)] cursor-pointer hover:border-[var(--accent-primary)] transition-colors">
+                      <Upload size={16} className="text-[var(--foreground-muted)]" />
+                      <span className="text-sm text-[var(--foreground-muted)]">
+                        {uploading ? 'Uploading...' : 'Upload image or PDF'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={handleDocumentUpload}
+                        disabled={uploading}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">

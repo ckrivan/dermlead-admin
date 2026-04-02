@@ -39,6 +39,21 @@ export interface Profile {
   updated_at: string;
 }
 
+export type FeatureToggleKey =
+  | 'leads'
+  | 'badges'
+  | 'faculty'
+  | 'sessions'
+  | 'industry_partners'
+  | 'announcements'
+  | 'moderation'
+  | 'faq'
+  | 'support'
+  | 'branding'
+  | 'attendees';
+
+export type EnabledFeatures = Record<FeatureToggleKey, boolean>;
+
 export interface Event {
   id: string;
   organization_id: string;
@@ -61,6 +76,8 @@ export interface Event {
   custom_url_slug: string | null;
   badge_template?: BadgeTemplateConfig | null;
   lead_access_days?: number;
+  enabled_features?: EnabledFeatures | null;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -113,6 +130,7 @@ export interface Session {
   capacity?: number | null;
   requires_registration?: boolean;
   is_highlighted?: boolean;
+  documents?: { title: string; url: string }[] | null;
   created_at: string;
   updated_at: string;
 }
