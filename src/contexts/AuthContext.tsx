@@ -25,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   const supabase = useRef(createClient()).current
+  const lastLoginUpdated = useRef(false)
 
   const fetchProfile = async (userId: string) => {
     const { data: profileData } = await supabase
@@ -49,11 +50,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Update last login timestamp
-      await supabase
-        .from('profiles')
-        .update({ last_login_at: new Date().toISOString() })
-        .eq('id', userId)
+      // Fire-and-forget: update last login timestamp without blocking loading.
+      // Only once per session to avoid redundant writes on token refresh.
+      if (!lastLoginUpdated.current) {
+        lastLoginUpdated.current = true
+        supabase
+          .from('profiles')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('id', userId)
+          .then(({ error }: { error: unknown }) => {
+            if (error) console.error('[AuthContext] last_login_at update failed:', error)
+          })
+      }
     }
   }
 

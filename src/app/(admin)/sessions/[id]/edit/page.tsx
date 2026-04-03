@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, CardFooter, Button, Input, Textarea } from '@/components/ui'
 import {
@@ -95,18 +96,20 @@ export default function EditSessionPage({ params }: EditSessionPageProps) {
 
     setUploading(true)
     try {
-      const form = new FormData()
-      form.append('file', file)
-      form.append('sessionId', id)
+      const supabase = createClient()
+      const fileExt = file.name.split('.').pop() || 'pdf'
+      const fileName = `${id}/${Date.now()}.${fileExt}`
 
-      const res = await fetch('/api/sessions/upload', { method: 'POST', body: form })
-      const data = await res.json()
+      const { error: uploadError } = await supabase.storage
+        .from('sessions')
+        .upload(fileName, file, { upsert: true })
 
-      if (!res.ok) {
-        alert(data.error || 'Upload failed')
+      if (uploadError) {
+        alert(uploadError.message || 'Upload failed')
         return
       }
 
+      const { data } = supabase.storage.from('sessions').getPublicUrl(fileName)
       const title = file.name.replace(/\.[^.]+$/, '')
       setDocuments((prev) => [...prev, { title, url: data.publicUrl }])
     } catch (error) {

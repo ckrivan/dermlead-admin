@@ -35,7 +35,7 @@ interface EventContextValue {
 const EventContext = createContext<EventContextValue | null>(null)
 
 export function EventProvider({ children }: { children: ReactNode }) {
-  const { loading: authLoading, user } = useAuth()
+  const { user } = useAuth()
 
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEvent, setSelectedEventState] = useState<Event | null>(null)
@@ -44,12 +44,11 @@ export function EventProvider({ children }: { children: ReactNode }) {
   const loadedForUser = useRef<string | null>(null)
 
   useEffect(() => {
-    // Wait for auth session before fetching
-    if (authLoading) return
-    // Only re-fetch if the user changed (login, logout, token refresh)
-    const userId = user?.id ?? null
-    if (loadedForUser.current === (userId ?? '__none__')) return
-    loadedForUser.current = userId ?? '__none__'
+    // Load events immediately — permissive RLS means no auth needed.
+    // Re-fetch if user changes (login/logout).
+    const userId = user?.id ?? '__none__'
+    if (loadedForUser.current === userId) return
+    loadedForUser.current = userId
 
     let cancelled = false
 
@@ -116,7 +115,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       cancelled = true
       clearTimeout(safetyTimer)
     }
-  }, [authLoading, user?.id]) // Re-fires on auth resolve or user change
+  }, [user?.id]) // Re-fires on user change (login/logout triggers full reload)
 
   const setSelectedEvent = (event: Event) => {
     setSelectedEventState(event)

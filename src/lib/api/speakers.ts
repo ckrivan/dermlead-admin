@@ -128,20 +128,19 @@ export async function uploadSpeakerPhoto(
   speakerId: string,
   file: File
 ): Promise<string> {
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('speakerId', speakerId)
+  const supabase = createClient()
+  const fileExt = file.name.split('.').pop() || 'jpg'
+  const filePath = `speakers/${speakerId}.${fileExt}`
 
-  const res = await fetch('/api/speakers/upload', {
-    method: 'POST',
-    body: formData,
-  })
+  const { error } = await supabase.storage
+    .from('speakers')
+    .upload(filePath, file, { upsert: true })
 
-  if (!res.ok) {
-    const err = await res.json()
-    throw new Error(err.error || 'Failed to upload photo')
+  if (error) {
+    console.error('Error uploading speaker photo:', error)
+    throw new Error(error.message || 'Failed to upload photo')
   }
 
-  const { publicUrl } = await res.json()
-  return publicUrl
+  const { data } = supabase.storage.from('speakers').getPublicUrl(filePath)
+  return data.publicUrl
 }
