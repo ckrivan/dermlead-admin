@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { Header } from "@/components/layout/Header";
 import { Card, CardBody, Button, Input } from "@/components/ui";
@@ -106,8 +107,9 @@ export default function AttendeesPage() {
   const [rosterSearching, setRosterSearching] = useState(false);
   const rosterDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Filter state
-  const [searchQuery, setSearchQuery] = useState("");
+  // Filter state — initialize from URL ?q= param (global search)
+  const searchParams = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedGroup, setSelectedGroup] = useState<string>("");
   const [selectedRegType, setSelectedRegType] = useState<string>("");
   const [showCheckedIn, setShowCheckedIn] = useState<

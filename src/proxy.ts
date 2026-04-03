@@ -29,14 +29,9 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Refresh session if expired
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
   const { pathname } = request.nextUrl
 
-  // Public routes - allow through
+  // Public routes — skip auth entirely (fastest path)
   if (
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth') ||
@@ -49,29 +44,32 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/mfa-enroll') ||
     pathname === '/'
   ) {
-    // If user is logged in and trying to access login, redirect to dashboard
-    if (user && pathname === '/login') {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
     return supabaseResponse
   }
 
-  // Protected routes - require auth
+  // Protected routes — refresh session cookie + verify auth (single network call)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   if (!user) {
     const redirectUrl = new URL('/login', request.url)
     redirectUrl.searchParams.set('redirectTo', pathname)
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Check if user has admin role
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role, is_active')
-    .eq('id', user.id)
-    .single()
+  // Admin role + MFA checks run in parallel (saves ~1-2s vs sequential)
+  const [profileResult, aalResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('role, is_active')
+      .eq('id', user.id)
+      .single(),
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+  ])
 
+  const { data: profile, error: profileError } = profileResult
   if (profileError) {
-    // Profile not found or DB error — deny access (user can refresh to retry)
     console.error('[proxy] Profile lookup failed:', profileError.message)
     return NextResponse.redirect(new URL('/unauthorized', request.url))
   }
@@ -80,14 +78,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/unauthorized', request.url))
   }
 
-  // Check MFA — mandatory for all admin users
-  const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  const { data: aalData } = aalResult
   if (aalData?.currentLevel === 'aal1' && aalData?.nextLevel === 'aal2') {
-    // User has MFA enrolled but session is only aal1 — redirect to verify
     return NextResponse.redirect(new URL('/mfa-verify', request.url))
   }
   if (aalData?.currentLevel === 'aal1' && aalData?.nextLevel === 'aal1') {
-    // User has NO MFA enrolled — redirect to enroll (mandatory)
     return NextResponse.redirect(new URL('/mfa-enroll', request.url))
   }
 

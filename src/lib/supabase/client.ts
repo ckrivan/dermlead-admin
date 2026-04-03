@@ -21,6 +21,9 @@ export function createClient() {
         },
       }
     )
+    // Warm up session so the first storage upload doesn't hang waiting
+    // for lazy auth hydration (same navigator.locks deadlock pattern).
+    _client.auth.getSession()
   }
 
   return _client

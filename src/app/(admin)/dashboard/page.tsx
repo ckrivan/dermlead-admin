@@ -10,6 +10,8 @@ import {
   BarChart3,
   UserCheck,
   Building2,
+  Sparkles,
+  X,
 } from "lucide-react";
 import { useEvent } from "@/contexts/EventContext";
 import { createClient } from "@/lib/supabase/client";
@@ -71,13 +73,13 @@ export default function DashboardPage() {
             .from("attendees")
             .select("*", { count: "exact", head: true })
             .eq("event_id", eventId)
-            .eq("badge_type", "attendee"),
+            .not("badge_type", "in", "(speaker,leadership)"),
           supabase
             .from("attendees")
             .select("*", { count: "exact", head: true })
             .eq("event_id", eventId)
-            .eq("badge_type", "attendee")
-            .eq("checked_in", true),
+            .not("badge_type", "in", "(speaker,leadership)")
+            .not("checked_in_at", "is", null),
           supabase
             .from("attendees")
             .select("*", { count: "exact", head: true })
@@ -102,15 +104,33 @@ export default function DashboardPage() {
     return () => { cancelled = true; };
   }, [selectedEvent?.id]);
 
+  // What's New — bump version key when adding new items
+  const WHATS_NEW_VERSION = "2026-04-02";
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem("whats-new-dismissed");
+    setShowWhatsNew(dismissed !== WHATS_NEW_VERSION);
+  }, []);
+
+  const dismissWhatsNew = () => {
+    localStorage.setItem("whats-new-dismissed", WHATS_NEW_VERSION);
+    setShowWhatsNew(false);
+  };
+
+  const whatsNewItems = [
+    "Universal search — find any attendee, speaker, session, or company from the top search bar",
+    "Booth staff search — search any attendee by name to add them to a booth (Industry Partners)",
+    "Dashboard accuracy — attendee counts now match the attendees page correctly",
+    "Industry Attendees card — renamed from Industry Partners for clarity",
+    "Dark mode — toggle via the moon icon in the header",
+    "Leads access control — grant/revoke lead capture per attendee from the attendees page",
+    "Excel import — bulk import attendees, exhibitors, and sponsors from Excel files",
+    "Badge management — generate and print badges with QR codes",
+  ];
+
   const statCards = stats
     ? [
-        {
-          name: "Total Events",
-          value: stats.totalEvents.toString(),
-          icon: Calendar,
-          color: "text-blue-400",
-          bgColor: "bg-blue-400/10",
-        },
         {
           name: "Attendees",
           value: stats.totalAttendees.toString(),
@@ -126,7 +146,7 @@ export default function DashboardPage() {
           bgColor: "bg-emerald-400/10",
         },
         {
-          name: "Industry Partners",
+          name: "Industry Attendees",
           value: stats.industryPartners.toString(),
           icon: Building2,
           color: "text-indigo-400",
@@ -196,6 +216,45 @@ export default function DashboardPage() {
               </Card>
             ))}
           </div>
+        )}
+
+        {/* What's New */}
+        {showWhatsNew && (
+          <Card>
+            <CardBody>
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-amber-400/10">
+                    <Sparkles className="text-amber-400" size={20} />
+                  </div>
+                  <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                    What&apos;s New
+                  </h2>
+                </div>
+                <button
+                  onClick={dismissWhatsNew}
+                  className="p-1 rounded-lg hover:bg-[var(--background-tertiary)] text-[var(--foreground-muted)] transition-colors"
+                  title="Dismiss"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <ul className="space-y-2">
+                {whatsNewItems.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-[var(--foreground-muted)]">
+                    <span className="text-amber-400 mt-0.5">&#x2022;</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={dismissWhatsNew}
+                className="mt-4 text-sm text-[var(--accent-primary)] hover:underline"
+              >
+                Got it, dismiss
+              </button>
+            </CardBody>
+          </Card>
         )}
 
         {/* Quick Actions */}

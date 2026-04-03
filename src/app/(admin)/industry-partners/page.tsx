@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Header } from '@/components/layout/Header'
 import { Card, CardBody, Button } from '@/components/ui'
 import {
@@ -70,13 +71,14 @@ type ActiveTab = 'exhibitors' | 'sponsors'
 export default function IndustryPartnersPage() {
   const { selectedEvent, events, setSelectedEvent } = useEvent()
   const selectedEventId = selectedEvent?.id ?? ''
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<ActiveTab>('exhibitors')
   const [groups, setGroups] = useState<EventGroup[]>([])
   const [loading, setLoading] = useState(true)
 
   // Exhibitor state
   const [exhibitors, setExhibitors] = useState<Exhibitor[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
 
   // Sponsor state
@@ -149,6 +151,37 @@ export default function IndustryPartnersPage() {
 
   // Booth staff per company (company_name lowercase → attendees)
   const [boothStaffMap, setBoothStaffMap] = useState<Record<string, Attendee[]>>({})
+
+  // Booth staff search (type-ahead across all event attendees)
+  const [staffSearchQuery, setStaffSearchQuery] = useState('')
+  const [staffSearchResults, setStaffSearchResults] = useState<Attendee[]>([])
+  const [staffSearching, setStaffSearching] = useState(false)
+  const staffSearchTimeout = useRef<NodeJS.Timeout | null>(null)
+
+  const searchAllAttendees = async (query: string, excludeIds: Set<string>) => {
+    if (!query.trim() || query.trim().length < 2 || !selectedEventId) {
+      setStaffSearchResults([])
+      return
+    }
+    setStaffSearching(true)
+    try {
+      const supabase = createClient()
+      const q = query.trim().toLowerCase()
+      const { data } = await supabase
+        .from('attendees')
+        .select('*')
+        .eq('event_id', selectedEventId)
+        .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%,institution.ilike.%${q}%`)
+        .order('last_name')
+        .limit(20)
+      setStaffSearchResults((data || []).filter((a: Attendee) => !excludeIds.has(a.id)) as Attendee[])
+    } catch (e) {
+      console.error('Staff search error:', e)
+      setStaffSearchResults([])
+    } finally {
+      setStaffSearching(false)
+    }
+  }
 
 
   // Load data when event changes
@@ -990,7 +1023,7 @@ export default function IndustryPartnersPage() {
       {/* Exhibitor Form Modal */}
       {showExhibitorForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[95vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
               <h3 className="font-semibold text-[var(--foreground)]">
                 {editingExhibitor ? 'Edit Exhibitor' : 'Add Exhibitor'}
@@ -1238,7 +1271,7 @@ export default function IndustryPartnersPage() {
 
               {/* Booth Staff Section (edit mode only) */}
               {editingExhibitor && (
-                <div className="border-t border-[var(--card-border)] pt-4">
+                <div className="border-t border-[var(--card-border)] pt-4 pb-16">
                   <h4 className="text-sm font-medium text-[var(--foreground)] mb-3">
                     <Users size={14} className="inline mr-1" />
                     Booth Staff
@@ -1277,50 +1310,61 @@ export default function IndustryPartnersPage() {
                       <p className="text-xs text-[var(--foreground-muted)] mb-3">No booth staff assigned. Add industry attendees below.</p>
                     )
                   })()}
-                  <div className="flex gap-2">
-                    <select
-                      id="exhibitor-add-staff"
-                      className="flex-1 px-3 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--input-focus)]"
-                    >
-                      <option value="">Select attendee to add...</option>
-                      {(() => {
-                        const currentStaffIds = new Set((boothStaffMap[exhibitorFormData.company_name.toLowerCase().trim()] || []).map((a) => a.id))
-                        const allIndustry = Object.values(boothStaffMap).flat()
-                        // Also show unassigned industry attendees (no institution) — fetch from all attendees
-                        return allIndustry
-                          .filter((a) => !currentStaffIds.has(a.id))
-                          .map((a) => (
-                            <option key={a.id} value={a.id}>{a.first_name} {a.last_name} {a.institution ? `(${a.institution})` : ''}</option>
+                  <div className="relative">
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]" />
+                        <input
+                          type="text"
+                          placeholder="Search any attendee by name or email..."
+                          className="w-full pl-9 pr-3 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--input-focus)]"
+                          value={staffSearchQuery}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setStaffSearchQuery(val)
+                            if (staffSearchTimeout.current) clearTimeout(staffSearchTimeout.current)
+                            const currentStaffIds = new Set((boothStaffMap[exhibitorFormData.company_name.toLowerCase().trim()] || []).map((a) => a.id))
+                            staffSearchTimeout.current = setTimeout(() => searchAllAttendees(val, currentStaffIds), 300)
+                          }}
+                        />
+                      </div>
+                    </div>
+                    {staffSearchQuery.trim().length >= 2 && (
+                      <div className="absolute z-10 mt-1 w-full bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {staffSearching ? (
+                          <p className="px-3 py-2 text-xs text-[var(--foreground-muted)]">Searching...</p>
+                        ) : staffSearchResults.length === 0 ? (
+                          <p className="px-3 py-2 text-xs text-[var(--foreground-muted)]">No attendees found</p>
+                        ) : (
+                          staffSearchResults.map((a) => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 hover:bg-[var(--background-tertiary)] text-sm flex justify-between items-center"
+                              onClick={async () => {
+                                const supabase = createClient()
+                                await supabase.from('attendees').update({
+                                  institution: exhibitorFormData.company_name.trim(),
+                                  badge_type: 'industry',
+                                }).eq('id', a.id)
+                                const { data: updated } = await supabase.from('attendees').select('*').eq('event_id', selectedEventId).eq('badge_type', 'industry').order('last_name')
+                                const newMap: Record<string, Attendee[]> = {}
+                                for (const att of (updated || []) as Attendee[]) {
+                                  const key = (att.institution || '').toLowerCase().trim()
+                                  if (key) { if (!newMap[key]) newMap[key] = []; newMap[key].push(att) }
+                                }
+                                setBoothStaffMap(newMap)
+                                setStaffSearchQuery('')
+                                setStaffSearchResults([])
+                              }}
+                            >
+                              <span>{a.first_name} {a.last_name}</span>
+                              <span className="text-xs text-[var(--foreground-muted)]">{a.badge_type} {a.institution ? `· ${a.institution}` : ''}</span>
+                            </button>
                           ))
-                      })()}
-                    </select>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      icon={<Plus size={14} />}
-                      onClick={async () => {
-                        const select = document.getElementById('exhibitor-add-staff') as HTMLSelectElement
-                        const attendeeId = select?.value
-                        if (!attendeeId) return
-                        const supabase = createClient()
-                        await supabase.from('attendees').update({
-                          institution: exhibitorFormData.company_name.trim(),
-                          badge_type: 'industry',
-                        }).eq('id', attendeeId)
-                        // Refresh booth staff
-                        const { data: updated } = await supabase.from('attendees').select('*').eq('event_id', selectedEventId).eq('badge_type', 'industry').order('last_name')
-                        const newMap: Record<string, Attendee[]> = {}
-                        for (const a of (updated || []) as Attendee[]) {
-                          const key = (a.institution || '').toLowerCase().trim()
-                          if (key) { if (!newMap[key]) newMap[key] = []; newMap[key].push(a) }
-                        }
-                        setBoothStaffMap(newMap)
-                        select.value = ''
-                      }}
-                    >
-                      Add
-                    </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1338,7 +1382,7 @@ export default function IndustryPartnersPage() {
       {/* Sponsor Form Modal */}
       {showSponsorForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-[var(--card-bg)] rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[95vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-[var(--card-border)]">
               <h3 className="font-semibold text-[var(--foreground)]">
                 {editingSponsor ? 'Edit Sponsor' : 'Add Sponsor'}
@@ -1598,7 +1642,7 @@ export default function IndustryPartnersPage() {
 
               {/* Booth Staff Section (edit mode only) */}
               {editingSponsor && (
-                <div className="border-t border-[var(--card-border)] pt-4">
+                <div className="border-t border-[var(--card-border)] pt-4 pb-16">
                   <h4 className="text-sm font-medium text-[var(--foreground)] mb-3">
                     <Users size={14} className="inline mr-1" />
                     Booth Staff
@@ -1637,48 +1681,61 @@ export default function IndustryPartnersPage() {
                       <p className="text-xs text-[var(--foreground-muted)] mb-3">No booth staff assigned. Add industry attendees below.</p>
                     )
                   })()}
-                  <div className="flex gap-2">
-                    <select
-                      id="sponsor-add-staff"
-                      className="flex-1 px-3 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--input-focus)]"
-                    >
-                      <option value="">Select attendee to add...</option>
-                      {(() => {
-                        const currentStaffIds = new Set((boothStaffMap[sponsorFormData.company_name.toLowerCase().trim()] || []).map((a) => a.id))
-                        const allIndustry = Object.values(boothStaffMap).flat()
-                        return allIndustry
-                          .filter((a) => !currentStaffIds.has(a.id))
-                          .map((a) => (
-                            <option key={a.id} value={a.id}>{a.first_name} {a.last_name} {a.institution ? `(${a.institution})` : ''}</option>
+                  <div className="relative">
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]" />
+                        <input
+                          type="text"
+                          placeholder="Search any attendee by name or email..."
+                          className="w-full pl-9 pr-3 py-2 rounded-lg bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--input-focus)]"
+                          value={staffSearchQuery}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setStaffSearchQuery(val)
+                            if (staffSearchTimeout.current) clearTimeout(staffSearchTimeout.current)
+                            const currentStaffIds = new Set((boothStaffMap[sponsorFormData.company_name.toLowerCase().trim()] || []).map((a) => a.id))
+                            staffSearchTimeout.current = setTimeout(() => searchAllAttendees(val, currentStaffIds), 300)
+                          }}
+                        />
+                      </div>
+                    </div>
+                    {staffSearchQuery.trim().length >= 2 && (
+                      <div className="absolute z-10 mt-1 w-full bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {staffSearching ? (
+                          <p className="px-3 py-2 text-xs text-[var(--foreground-muted)]">Searching...</p>
+                        ) : staffSearchResults.length === 0 ? (
+                          <p className="px-3 py-2 text-xs text-[var(--foreground-muted)]">No attendees found</p>
+                        ) : (
+                          staffSearchResults.map((a) => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 hover:bg-[var(--background-tertiary)] text-sm flex justify-between items-center"
+                              onClick={async () => {
+                                const supabase = createClient()
+                                await supabase.from('attendees').update({
+                                  institution: sponsorFormData.company_name.trim(),
+                                  badge_type: 'industry',
+                                }).eq('id', a.id)
+                                const { data: updated } = await supabase.from('attendees').select('*').eq('event_id', selectedEventId).eq('badge_type', 'industry').order('last_name')
+                                const newMap: Record<string, Attendee[]> = {}
+                                for (const att of (updated || []) as Attendee[]) {
+                                  const key = (att.institution || '').toLowerCase().trim()
+                                  if (key) { if (!newMap[key]) newMap[key] = []; newMap[key].push(att) }
+                                }
+                                setBoothStaffMap(newMap)
+                                setStaffSearchQuery('')
+                                setStaffSearchResults([])
+                              }}
+                            >
+                              <span>{a.first_name} {a.last_name}</span>
+                              <span className="text-xs text-[var(--foreground-muted)]">{a.badge_type} {a.institution ? `· ${a.institution}` : ''}</span>
+                            </button>
                           ))
-                      })()}
-                    </select>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      icon={<Plus size={14} />}
-                      onClick={async () => {
-                        const select = document.getElementById('sponsor-add-staff') as HTMLSelectElement
-                        const attendeeId = select?.value
-                        if (!attendeeId) return
-                        const supabase = createClient()
-                        await supabase.from('attendees').update({
-                          institution: sponsorFormData.company_name.trim(),
-                          badge_type: 'industry',
-                        }).eq('id', attendeeId)
-                        const { data: updated } = await supabase.from('attendees').select('*').eq('event_id', selectedEventId).eq('badge_type', 'industry').order('last_name')
-                        const newMap: Record<string, Attendee[]> = {}
-                        for (const a of (updated || []) as Attendee[]) {
-                          const key = (a.institution || '').toLowerCase().trim()
-                          if (key) { if (!newMap[key]) newMap[key] = []; newMap[key].push(a) }
-                        }
-                        setBoothStaffMap(newMap)
-                        select.value = ''
-                      }}
-                    >
-                      Add
-                    </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
